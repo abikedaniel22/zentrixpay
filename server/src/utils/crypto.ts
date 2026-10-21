@@ -1,7 +1,13 @@
 import { randomBytes, createHash } from "node:crypto";
 
+/**
+ * Prefix for newly issued provider API keys. Keys are looked up by hash, so
+ * keys issued under the old `mv_` prefix keep authenticating.
+ */
+export const API_KEY_PREFIX = "zp_";
+
 export function generateApiKey(): string {
-  return `mv_${randomBytes(32).toString("hex")}`;
+  return `${API_KEY_PREFIX}${randomBytes(32).toString("hex")}`;
 }
 
 export function hashApiKey(key: string): string {

@@ -10,7 +10,7 @@ import {
 } from "./requestSignature.js";
 
 describe("requestSignature", () => {
-  const secret = "mv_test_secret_key";
+  const secret = "zp_test_secret_key";
   const timestamp = "1710000000";
   const path = "/resources/abc/register";
   const body = JSON.stringify({ signedXdr: "AAAA..." });
