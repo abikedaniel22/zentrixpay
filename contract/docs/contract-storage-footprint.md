@@ -7,7 +7,7 @@ that outlives any single transaction — and, unlike WASM size, nothing in CI
 measured it.
 
 This report is generated and enforced by the `storage_footprint_report` test in
-[`contract/contracts/vault-registry/src/test.rs`](../contract/contracts/vault-registry/src/test.rs).
+[`contract/contracts/vault-registry/src/test.rs`](../contracts/vault-registry/src/test.rs).
 Contract CI runs the same report explicitly through `make footprint`, so
 storage growth fails unless the budget and this report are updated together.
 
@@ -108,7 +108,7 @@ shared bounded view and is not included in the per-registration aggregate.
   enum without a corresponding entry.
 - **Tombstoning** frees the `TagIndex` and `CreatorResources` membership for a
   resource (see the lifecycle section of
-  [`contract/README.md`](../contract/README.md)), but deliberately leaves
+  [`contract/README.md`](../README.md)), but deliberately leaves
   `Resource`, `Index`, and `Count` in place for auditability — a retired
   resource keeps its ~1.5 KB `Resource` entry.
 
@@ -125,5 +125,5 @@ quietly raising rent. When growth is intended:
 Related: [`contract-upgrade-checklist.md`](contract-upgrade-checklist.md) for
 the deployment steps a storage-shape change implies, and the WASM size budget
 in
-[`contract/contracts/vault-registry/Makefile`](../contract/contracts/vault-registry/Makefile),
+[`contract/contracts/vault-registry/Makefile`](../contracts/vault-registry/Makefile),
 which covers code size rather than storage.

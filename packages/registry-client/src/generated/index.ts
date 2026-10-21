@@ -1016,7 +1016,7 @@ export interface Client {
    * (else `DuplicateInRepair`). Never touches `Resource` storage itself —
    * only rewrites the derived `Index`/`Count` pointers, so it's safe to
    * re-run with the current correct id list as a no-op. See
-   * `docs/index-repair.md` for the full repair strategy.
+   * `contract/docs/index-repair.md` for the full repair strategy.
    */
   repair_index: ({ids}: {ids: Array<string>}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
@@ -1393,7 +1393,7 @@ export interface Client {
    * or deletes `Resource` storage — only rewrites the derived `TagIndex`
    * entries for the tags those resources currently carry. Safe to re-run
    * with the correct current id list as a no-op. See
-   * `docs/tag-index-repair-design.md` for the full strategy.
+   * `contract/docs/tag-index-repair-design.md` for the full strategy.
    * 
    * An empty `ids` list is a documented no-op: it returns `Ok(())` and
    * deliberately emits **no** `retagidx` event. There is nothing to index, so

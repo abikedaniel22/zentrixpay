@@ -8,7 +8,7 @@ Source: [`mcp/src/receipts.ts`](../mcp/src/receipts.ts).
 
 ## Export vs. history
 
-[`zentrixpay_purchase_history`](mcp-quickstart.md) lists what was bought; it is a
+[`zentrixpay_purchase_history`](mcp-tool-reference.md) lists what was bought; it is a
 browsing aid. An export is a document other systems read, so it adds what a
 listing does not have:
 

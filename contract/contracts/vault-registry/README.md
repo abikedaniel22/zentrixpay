@@ -210,7 +210,7 @@ Call `contract_version` against the deployed contract before upgrading and
 again afterwards. If `resource_schema_version` changed, regenerate the client
 bindings (`pnpm contract:bindings`) and update any code that decodes
 `Resource` before pointing clients at the new deployment. The full sequence is
-in [`docs/contract-upgrade-checklist.md`](../../../docs/contract-upgrade-checklist.md).
+in [`contract/docs/contract-upgrade-checklist.md`](../../docs/contract-upgrade-checklist.md).
 
 ---
 

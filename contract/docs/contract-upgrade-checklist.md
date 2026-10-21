@@ -391,10 +391,8 @@ pnpm --filter @zentrixpay/server reconcile
 
 ## Related docs
 
-- [Deployment Runbook](./deployment-runbook.md) — full stack deploy (contract + server + frontend + MCP)
-- [Mainnet Deployment Checklist](./mainnet-deployment-checklist.md) — additional mainnet-specific steps
+- [Deployment Runbook](../../docs/deployment-runbook.md) — full stack deploy (contract + server + frontend + MCP)
 - [Registry Client Bindings](./registry-client-bindings.md) — how bindings are generated and kept fresh
 - [Index Repair](./index-repair.md) — `repair_index` admin operation
-- [Reconciliation](./reconciliation.md) — drift detection between DB and on-chain registry
 - [Contract Registry Pause Decision](./contract-registry-pause-decision.md) — pause/unpause ADR
-- [`contract/README.md`](../contract/README.md) — contract API reference, error codes, events table
+- [`contract/README.md`](../README.md) — contract API reference, error codes, events table

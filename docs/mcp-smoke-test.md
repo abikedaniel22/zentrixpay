@@ -43,7 +43,7 @@ Runs against the real hosted backend on Stellar **testnet** (the MCP server's
 defaults). The publisher wallet created during the run must hold testnet USDC to
 pay the verification fee on publish and the price on buy — fund it from the
 [Circle testnet faucet](https://faucet.circle.com) as described in
-[mcp-quickstart.md](mcp-quickstart.md#2-funding-the-agent-wallet). Because it
+[stellar-testnet-funding.md](stellar-testnet-funding.md). Because it
 touches live services, this target is slower and not deterministic.
 
 ## What it guarantees

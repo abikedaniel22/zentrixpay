@@ -19,7 +19,7 @@ tag to the resource ids that carry it, on-chain or off-chain:
   own yet — flagged as a follow-up in index-repair.md's "What this does not
   solve"). Nothing derives a tag-keyed index.
 - **Off-chain**: the server's `resources` table
-  ([`server/src/db/schema.ts`](../server/src/db/schema.ts)) stores the
+  ([`server/src/db/schema.ts`](../../server/src/db/schema.ts)) stores the
   normalized tag list in a `tags` JSONB column. The event listener replaces it
   from the `settags` payload; tag-based filtering through the API is not yet
   implemented.
@@ -60,7 +60,7 @@ pub fn repair_tag_index(env: Env, ids: Vec<String>) -> Result<(), Error>
 
 - **Authorization**: admin-only, using the same admin as `repair_index` and
   `add_verifier`/`remove_verifier` (see
-  [`architecture.md`](architecture.md#roles-admin-and-verifier)). Errors
+  the contract README's [admin roles](../README.md)). Errors
   `AdminNotSet` if no admin has ever been set. Not verifier-accessible —
   repairing a derived index is a structural/integrity operation, not
   content-verification, and one call can touch tag entries spanning many
@@ -150,7 +150,7 @@ tags`); unlike the pagination index, the contract does not need to be told
 ## Tests
 
 `register_then_settags_events_reconstruct_current_tags` in
-[`contract/contracts/vault-registry/src/test.rs`](../contract/contracts/vault-registry/src/test.rs)
+[`contract/contracts/vault-registry/src/test.rs`](../contracts/vault-registry/src/test.rs)
 registers several resources, mutates their tags through multiple `set_tags`
 calls (including removing all tags and re-adding a different set), then
 replays only the `register`/`settags` events — never calling `get` — to

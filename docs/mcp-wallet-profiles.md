@@ -182,4 +182,4 @@ overwritten. The quarantine and preservation helpers live in
 
 ## Mainnet guardrails
 
-When `STELLAR_NETWORK` is `mainnet`, mutation and buy tools require `confirmMainnet: true` (or process env `ZENTRIXPAY_ALLOW_MAINNET=1`). Profile list/switch/info tools are read-only and stay unrestricted. See [mainnet-deployment-checklist.md](./mainnet-deployment-checklist.md#mcp-mainnet-guardrails).
+When `STELLAR_NETWORK` is `mainnet`, mutation and buy tools require `confirmMainnet: true` (or process env `ZENTRIXPAY_ALLOW_MAINNET=1`). Profile list/switch/info tools are read-only and stay unrestricted. See [MCP mainnet guardrails](./environment-variables.md#mcp-mainnet-guardrails).

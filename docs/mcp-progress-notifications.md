@@ -91,6 +91,5 @@ loses no information.
 
 ## Related docs
 
-- [resource-publish-lifecycle.md](resource-publish-lifecycle.md)
 - [mcp-tool-arguments.md](mcp-tool-arguments.md)
 - [mcp-timeouts-retries.md](mcp-timeouts-retries.md)

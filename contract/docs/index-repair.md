@@ -1,7 +1,7 @@
 # ADR: Owner Index Repair Strategy
 
 **Status:** Accepted — implemented in `repair_index` (see
-[`contract/contracts/vault-registry/src/lib.rs`](../contract/contracts/vault-registry/src/lib.rs)).
+[`contract/contracts/vault-registry/src/lib.rs`](../contracts/vault-registry/src/lib.rs)).
 
 ## Context
 
@@ -48,7 +48,7 @@ pub fn repair_index(env: Env, ids: Vec<String>) -> Result<(), Error>
 
 - **Authorization**: admin-only, using the same admin established by
   `nominate_new_admin`/`accept_admin` (see
-  [`architecture.md`](architecture.md#roles-admin-and-verifier)). Errors
+  the contract README's [admin roles](../README.md)). Errors
   `AdminNotSet` if no admin has ever been set. `repair_index` cannot be
   called by a verifier — repairing the index is a structural/integrity
   operation, not a content-verification one, so it stays scoped to the same
@@ -58,7 +58,7 @@ pub fn repair_index(env: Env, ids: Vec<String>) -> Result<(), Error>
   - replaying `register`/`transfer`/`accept_transfer` events from the
     Soroban RPC/indexer,
   - the existing `pnpm reconcile` script's "missing in DB" / "missing
-    on-chain" report (see [`reconciliation.md`](reconciliation.md)), cross-
+    on-chain" report, cross-
     checked against the DB's own resource list,
   - a last-known-good snapshot of `list`/`list_page` output taken before the
     drift was introduced.
@@ -113,7 +113,7 @@ pub fn repair_index(env: Env, ids: Vec<String>) -> Result<(), Error>
 ## Tests
 
 See `repair_index_*` tests in
-[`contract/contracts/vault-registry/src/test.rs`](../contract/contracts/vault-registry/src/test.rs):
+[`contract/contracts/vault-registry/src/test.rs`](../contracts/vault-registry/src/test.rs):
 rebuilding from an authoritative list (including dropping an id from the
 index while it stays readable via `get`), rejecting an unknown id with no
 partial write, rejecting duplicate ids, requiring an admin first, and
