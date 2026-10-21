@@ -523,6 +523,48 @@ export async function recordHealthCheck(
   return row ?? api;
 }
 
+/**
+ * Totals across every API a provider owns (archived ones included, since their
+ * calls were real), plus a per-API breakdown. APIs with no calls show zeros.
+ */
+export async function getPublisherAnalytics(publisherId: string) {
+  const [totals] = await db
+    .select({
+      calls: sql<number>`count(*)::int`,
+      chargedCalls: sql<number>`count(*) filter (where ${apiCalls.charged})::int`,
+      revenue: sql<string>`coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0)::text`,
+    })
+    .from(apiCalls)
+    .innerJoin(apis, eq(apiCalls.apiId, apis.id))
+    .where(eq(apis.publisherId, publisherId));
+
+  const perApi = await db
+    .select({
+      id: apis.id,
+      name: apis.name,
+      archivedAt: apis.archivedAt,
+      calls: sql<number>`count(${apiCalls.id})::int`,
+      chargedCalls: sql<number>`count(${apiCalls.id}) filter (where ${apiCalls.charged})::int`,
+      revenue: sql<string>`coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0)::text`,
+    })
+    .from(apis)
+    .leftJoin(apiCalls, eq(apiCalls.apiId, apis.id))
+    .where(eq(apis.publisherId, publisherId))
+    .groupBy(apis.id)
+    .orderBy(desc(apis.createdAt));
+
+  return {
+    totals: {
+      apis: perApi.length,
+      calls: totals?.calls ?? 0,
+      chargedCalls: totals?.chargedCalls ?? 0,
+      revenue: totals?.revenue ?? "0",
+      currency: "USDC" as const,
+    },
+    apis: perApi,
+  };
+}
+
 export async function getApiStats(apiId: string) {
   const [totals] = await db
     .select({
