@@ -3,16 +3,12 @@ import express from "express";
 import request from "supertest";
 import { createHash } from "node:crypto";
 
-const { PUBLISHERS_MARKER, RESOURCES_MARKER, PAYMENTS_MARKER } = vi.hoisted(() => ({
+const { PUBLISHERS_MARKER } = vi.hoisted(() => ({
   PUBLISHERS_MARKER: { __table: "publishers" },
-  RESOURCES_MARKER: { __table: "resources" },
-  PAYMENTS_MARKER: { __table: "payments" },
 }));
 
 vi.mock("../db/schema.js", () => ({
   publishers: PUBLISHERS_MARKER,
-  resources: RESOURCES_MARKER,
-  payments: PAYMENTS_MARKER,
 }));
 
 // apiKeyAuth matches by sha256(key); precompute so tests can supply a known key/hash pair.
@@ -29,8 +25,6 @@ const authedPublisher = {
 };
 
 let publishersLookupRows: Array<typeof authedPublisher>;
-let resourcesRows: any[];
-let paymentsRows: any[];
 
 vi.mock("../db/client.js", () => ({
   db: {
@@ -38,12 +32,6 @@ vi.mock("../db/client.js", () => ({
       from: (table: unknown) => {
         if (table === PUBLISHERS_MARKER) {
           return { where: () => Promise.resolve(publishersLookupRows) };
-        }
-        if (table === RESOURCES_MARKER) {
-          return { where: () => Promise.resolve(resourcesRows) };
-        }
-        if (table === PAYMENTS_MARKER) {
-          return { where: () => Promise.resolve(paymentsRows) };
         }
         throw new Error("unexpected table in select().from()");
       },
@@ -55,14 +43,12 @@ vi.mock("../config.js", () => ({
   config: { BASE_URL: "http://localhost:4021" },
 }));
 
-const { mockRegisterPublisher, mockGetPublisherResources } = vi.hoisted(() => ({
+const { mockRegisterPublisher } = vi.hoisted(() => ({
   mockRegisterPublisher: vi.fn(),
-  mockGetPublisherResources: vi.fn(),
 }));
 
 vi.mock("../services/publisherService.js", () => ({
   registerPublisher: mockRegisterPublisher,
-  getPublisherResources: mockGetPublisherResources,
 }));
 
 import publisherRouter from "./publishers.js";
@@ -209,114 +195,6 @@ describe("GET /publishers/me — auth enforcement (#294)", () => {
       name: "Alice",
       email: "alice@example.com",
       walletAddress: "GALICE",
-    });
-  });
-});
-
-describe("GET /publishers/me/resources — auth + happy path (#294)", () => {
-  beforeEach(() => {
-    publishersLookupRows = [authedPublisher];
-    mockGetPublisherResources.mockReset();
-  });
-
-  it("returns 401 without a valid API key", async () => {
-    publishersLookupRows = [];
-
-    const res = await request(createTestApp())
-      .get("/publishers/me/resources")
-      .set("x-api-key", "mv_wrong-key");
-
-    expect(res.status).toBe(401);
-    expect(mockGetPublisherResources).not.toHaveBeenCalled();
-  });
-
-  it("returns the authenticated publisher's resources", async () => {
-    mockGetPublisherResources.mockResolvedValue([{ id: "res-1", title: "Doc" }]);
-
-    const res = await request(createTestApp())
-      .get("/publishers/me/resources")
-      .set("x-api-key", VALID_API_KEY);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([{ id: "res-1", title: "Doc" }]);
-    expect(mockGetPublisherResources).toHaveBeenCalledWith("pub-1");
-  });
-});
-
-describe("GET /publishers/me/analytics — auth + aggregation (#294)", () => {
-  beforeEach(() => {
-    publishersLookupRows = [authedPublisher];
-    resourcesRows = [];
-    paymentsRows = [];
-  });
-
-  it("returns 401 without a valid API key", async () => {
-    publishersLookupRows = [];
-
-    const res = await request(createTestApp())
-      .get("/publishers/me/analytics")
-      .set("x-api-key", "mv_wrong-key");
-
-    expect(res.status).toBe(401);
-  });
-
-  it("returns zeroed summary when the publisher has no resources", async () => {
-    const res = await request(createTestApp())
-      .get("/publishers/me/analytics")
-      .set("x-api-key", VALID_API_KEY);
-
-    expect(res.status).toBe(200);
-    expect(res.body.summary).toMatchObject({
-      totalEarned: "0.0000",
-      totalSales: 0,
-      totalResources: 0,
-      listedResources: 0,
-    });
-    expect(res.body.resources).toEqual([]);
-  });
-
-  it("aggregates earnings only from payments paid to the publisher's own wallet", async () => {
-    resourcesRows = [
-      {
-        id: "res-1",
-        title: "Doc",
-        price: "5.00",
-        verificationStatus: "verified",
-        listed: true,
-        createdAt: new Date("2026-01-01"),
-      },
-    ];
-    paymentsRows = [
-      {
-        id: "pay-1",
-        resourceId: "res-1",
-        payerAddress: "GBUYER",
-        recipientAddress: "GALICE",
-        amount: "5.00",
-        paidAt: new Date("2026-01-02"),
-      },
-      {
-        id: "pay-2",
-        resourceId: "res-1",
-        payerAddress: "GBUYER2",
-        recipientAddress: "GSOMEONE_ELSE",
-        amount: "99.00",
-        paidAt: new Date("2026-01-03"),
-      },
-    ];
-
-    const res = await request(createTestApp())
-      .get("/publishers/me/analytics")
-      .set("x-api-key", VALID_API_KEY);
-
-    expect(res.status).toBe(200);
-    expect(res.body.summary.totalEarned).toBe("5.0000");
-    expect(res.body.summary.totalSales).toBe(1);
-    expect(res.body.resources).toHaveLength(1);
-    expect(res.body.resources[0]).toMatchObject({
-      id: "res-1",
-      totalSales: 1,
-      totalEarned: "5.0000",
     });
   });
 });

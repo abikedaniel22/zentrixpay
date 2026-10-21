@@ -53,16 +53,6 @@ describe("structured tools advertise a schema", () => {
     }
   });
 
-  it("publish_status and purchase_history advertise their schemas from TOOL_DEFINITIONS", () => {
-    // They used to live in a side table because they were missing from
-    // TOOL_DEFINITIONS; both are defined there now, so the schemas travel with
-    // the definition like every other tool's (#596).
-    const byName = new Map(TOOL_DEFINITIONS.map((t) => [t.name, t]));
-    expect(byName.get("zentrixpay_publish_status")?.outputSchema).toBe(PUBLISH_STATUS_OUTPUT_SCHEMA);
-    expect(byName.get("zentrixpay_purchase_history")?.outputSchema).toBe(
-      PURCHASE_HISTORY_OUTPUT_SCHEMA,
-    );
-  });
 });
 
 describe("representative payloads match advertised required keys", () => {

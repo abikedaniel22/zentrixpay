@@ -62,16 +62,6 @@ describe("MCP tool metadata", () => {
     expect(TOOL_DEFINITIONS.map((t) => t.name)).toMatchSnapshot();
   });
 
-  it("zentrixpay_search inputSchema", () => {
-    const searchSchema = {
-      type: "object",
-      properties: { ...catalogFilterInputProperties },
-      required: [],
-    };
-
-    expect(searchSchema).toMatchSnapshot();
-  });
-
   it("structured tools declare outputSchema and text-only tools do not (#553)", () => {
     for (const tool of TOOL_DEFINITIONS) {
       if ((TEXT_ONLY_TOOLS as readonly string[]).includes(tool.name)) {
@@ -82,10 +72,4 @@ describe("MCP tool metadata", () => {
     }
   });
 
-  it("zentrixpay_publish inputSchema", () => {
-    // Snapshot the definition itself, not a copy of it: a hand-written literal
-    // drifts from the real schema and then snapshots its own drift.
-    const publish = TOOL_DEFINITIONS.find((t) => t.name === "zentrixpay_publish");
-    expect(publish?.inputSchema).toMatchSnapshot();
-  });
 });

@@ -20,34 +20,17 @@ const envSchema = z.object({
   STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
   NETWORK: z.string().min(1),
   FACILITATOR_URL: z.string().default("https://www.x402.org/facilitator"),
-  PAY_TO: z.string().min(1, "PAY_TO (platform wallet address) is required"),
-  AGENT_SECRET_KEY: z.string().min(1, "AGENT_SECRET_KEY (platform agent secret) is required"),
   USDC_CONTRACT_ID: z.string().min(1),
 
-  // Soroban / vault-registry
+  // Soroban
   SOROBAN_RPC_URL: z.string().url("SOROBAN_RPC_URL must be a valid URL"),
-  VAULT_REGISTRY_CONTRACT_ID: z.string().min(1, "VAULT_REGISTRY_CONTRACT_ID is required"),
 
-  // OpenRouter
-  OPENROUTER_API_KEY: z.string().min(1, "OPENROUTER_API_KEY is required"),
-  OPENROUTER_MODEL: z.string().default("anthropic/claude-sonnet-4"),
-
-  // Supabase
-  DATABASE_URL: z.string().min(1, "DATABASE_URL (Supabase Postgres connection string) is required"),
-  SUPABASE_URL: z.string().url("SUPABASE_URL must be a valid URL"),
-  SUPABASE_SERVICE_KEY: z.string().min(1, "SUPABASE_SERVICE_KEY is required"),
-  SUPABASE_STORAGE_BUCKET: z.string().default("resources"),
+  // Postgres
+  DATABASE_URL: z.string().min(1, "DATABASE_URL (Postgres connection string) is required"),
 
   // Limits
-  MAX_FILE_SIZE_MB: z.coerce.number().default(50),
   // Explicit JSON body limit for express.json() (e.g. "1mb", "512kb").
   MAX_JSON_BODY_SIZE: z.string().default("1mb"),
-  // Comma-separated allowlist of accepted upload content types (#87).
-  ALLOWED_UPLOAD_MIME_TYPES: z
-    .string()
-    .default(
-      "application/pdf,image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,application/json,application/zip,video/mp4,audio/mpeg",
-    ),
 
   // Soroban registry
   REGISTRY_CONTRACT_ID: z.string().min(1, "REGISTRY_CONTRACT_ID is required"),
@@ -62,19 +45,7 @@ const envSchema = z.object({
   // Sentry error tracking — when DSN is set, unhandled errors are reported.
   SENTRY_DSN: z.string().url().optional(),
 
-  // Verification
-  VERIFICATION_PRICE: z.string().default("0.10"),
-  // OpenRouter token pricing (USD per 1M tokens) used to estimate the cost of
-  // each verification (#283). Defaults track anthropic/claude-sonnet-4 list
-  // pricing; override per model if you change OPENROUTER_MODEL.
-  VERIFICATION_PROMPT_COST_PER_1M: z.coerce.number().nonnegative().default(3),
-  VERIFICATION_COMPLETION_COST_PER_1M: z.coerce.number().nonnegative().default(15),
-
-  // Rate limiting (verify-content + publish)
-  RATE_LIMIT_VERIFY_IP_MAX: z.coerce.number().default(10),
-  RATE_LIMIT_VERIFY_IP_WINDOW_MS: z.coerce.number().default(60_000),
-  RATE_LIMIT_VERIFY_WALLET_MAX: z.coerce.number().default(5),
-  RATE_LIMIT_VERIFY_WALLET_WINDOW_MS: z.coerce.number().default(3_600_000),
+  // Rate limiting (API registration)
   RATE_LIMIT_PUBLISH_IP_MAX: z.coerce.number().default(20),
   RATE_LIMIT_PUBLISH_IP_WINDOW_MS: z.coerce.number().default(60_000),
   RATE_LIMIT_PUBLISH_WALLET_MAX: z.coerce.number().default(10),
@@ -96,12 +67,6 @@ const envSchema = z.object({
   // How long a publish Idempotency-Key is remembered so retries return the
   // original result instead of creating a duplicate (default 24h).
   IDEMPOTENCY_TTL_MS: z.coerce.number().default(86_400_000),
-  // Short-lived cache for catalog/preview reads to cut DB load. Kept low so
-  // newly published/delisted resources surface quickly.
-  CATALOG_CACHE_TTL_MS: z.coerce.number().default(10_000),
-  // Max distinct filter/sort/pagination combinations cached for the catalog
-  // (#316). Bounds key cardinality; oldest entries are evicted (FIFO).
-  CATALOG_CACHE_MAX_KEYS: z.coerce.number().int().min(1).default(200),
 
   // API proxy (pay-per-call gateway)
   // 32-byte key (64 hex chars) used to encrypt providers' upstream secret
@@ -168,7 +133,7 @@ const networkIssues = validateNetworkConfig({
   x402Network: parsed.data.NETWORK,
   sorobanRpcUrl: parsed.data.SOROBAN_RPC_URL,
   usdcSacContractId: parsed.data.USDC_CONTRACT_ID,
-  registryContractId: parsed.data.VAULT_REGISTRY_CONTRACT_ID,
+  registryContractId: parsed.data.REGISTRY_CONTRACT_ID,
 });
 
 if (networkIssues.length > 0) {

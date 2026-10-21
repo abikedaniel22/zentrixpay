@@ -53,7 +53,7 @@ vi.mock("@zentrixpay/registry-client", async (importOriginal) => {
 // delay, so these run without real sleeping.
 process.env.ZENTRIXPAY_RETRY_ATTEMPTS = "3";
 
-const { browse, buy, walletInfo, txStatus, networkProfile, _setAgentWallet } =
+const { walletInfo, txStatus, networkProfile, _setAgentWallet } =
   await import("./index.js");
 
 function mockResponse(data: unknown, ok = true, status = 200, headers?: Record<string, string>) {
@@ -77,43 +77,6 @@ afterEach(() => {
 });
 
 describe("idempotent reads retry", () => {
-  it("browse recovers from a transient network failure", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("fetch failed"))
-      .mockResolvedValueOnce(mockResponse([]));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await expect(browse()).resolves.toBe("No resources listed yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("browse recovers from a transient 503", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(mockResponse({ error: "unavailable" }, false, 503))
-      .mockResolvedValueOnce(mockResponse([]));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await expect(browse()).resolves.toBe("No resources listed yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("gives up after the bounded attempt count and reports the failure", async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new Error("fetch failed"));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await expect(browse()).rejects.toThrow(/Category: network/);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it("does not retry a client error that retrying cannot fix", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(mockResponse({ error: "bad request" }, false, 400));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await expect(browse()).rejects.toThrow(/Category: validation/);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
 
   it("retries Horizon balance reads", async () => {
     _setAgentWallet(testWallet);
@@ -145,61 +108,6 @@ describe("idempotent reads retry", () => {
     const parsed = JSON.parse(await txStatus("abc123"));
     expect(parsed.status).toBe("SUCCESS");
     expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("non-idempotent calls are issued exactly once", () => {
-  it("never replays an x402 payment, even on a transient failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
-      const u = String(url);
-      if (u.includes("/accounts/")) {
-        return Promise.resolve(
-          mockResponse({
-            balances: [
-              { asset_type: "native", balance: "10.0" },
-              { asset_type: "credit_alphanum4", asset_code: "USDC", balance: "999.00" },
-            ],
-          }),
-        );
-      }
-      return Promise.resolve(mockResponse({ id: "res-001", title: "Doc", price: "5.00" }));
-    });
-
-    // A paid fetch that fails with a status retry would normally replay (503).
-    const paid = vi.fn().mockResolvedValue(mockResponse({ error: "unavailable" }, false, 503));
-    const { wrapFetchWithPayment } = await import("@x402/fetch");
-    vi.mocked(wrapFetchWithPayment).mockImplementation(() => paid as any);
-
-    _setAgentWallet(testWallet);
-    await expect(buy("res-001")).rejects.toThrow(/Buy failed \[503\]/);
-
-    // Exactly one payment attempt — a second could sign and settle twice.
-    expect(paid).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not replay a payment that fails at the transport level", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
-      const u = String(url);
-      if (u.includes("/accounts/")) {
-        return Promise.resolve(
-          mockResponse({
-            balances: [
-              { asset_type: "native", balance: "10.0" },
-              { asset_type: "credit_alphanum4", asset_code: "USDC", balance: "999.00" },
-            ],
-          }),
-        );
-      }
-      return Promise.resolve(mockResponse({ id: "res-001", title: "Doc", price: "5.00" }));
-    });
-
-    const paid = vi.fn().mockRejectedValue(new Error("fetch failed"));
-    const { wrapFetchWithPayment } = await import("@x402/fetch");
-    vi.mocked(wrapFetchWithPayment).mockImplementation(() => paid as any);
-
-    _setAgentWallet(testWallet);
-    await expect(buy("res-001")).rejects.toThrow(/Buy failed/);
-    expect(paid).toHaveBeenCalledTimes(1);
   });
 });
 

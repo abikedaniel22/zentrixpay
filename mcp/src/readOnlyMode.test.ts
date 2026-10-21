@@ -76,31 +76,6 @@ describe("isReadOnlyTool", () => {
     }
   });
 
-  it("classifies the catalog browsing tools as read-only", () => {
-    for (const name of [
-      "zentrixpay_browse",
-      "zentrixpay_search",
-      "zentrixpay_preview",
-      "zentrixpay_registry_lookup",
-      "zentrixpay_registry_list",
-    ]) {
-      expect(isReadOnlyTool(name), name).toBe(true);
-    }
-  });
-
-  it("classifies spending and state-clearing tools as not read-only", () => {
-    for (const name of [
-      "zentrixpay_buy",
-      "zentrixpay_publish",
-      "zentrixpay_reset",
-      "zentrixpay_restore_state",
-      "zentrixpay_import_wallet",
-      "zentrixpay_rotate_publisher_key",
-    ]) {
-      expect(isReadOnlyTool(name), name).toBe(false);
-    }
-  });
-
   it("fails closed on an unknown name", () => {
     // A safety boundary must not admit a name it has never heard of.
     expect(isReadOnlyTool("zentrixpay_not_a_tool")).toBe(false);
@@ -114,46 +89,14 @@ describe("filterToolsForReadOnlyMode", () => {
     expect(filterToolsForReadOnlyMode(tools, {})).toEqual(tools);
   });
 
-  it("keeps only read-only tools when the mode is on", () => {
-    expect(filterToolsForReadOnlyMode(tools, { [READ_ONLY_ENV_VAR]: "1" })).toEqual([
-      { name: "zentrixpay_browse" },
-    ]);
-  });
-
   it("returns a copy rather than the caller's array", () => {
     const result = filterToolsForReadOnlyMode(tools, {});
     expect(result).not.toBe(tools);
   });
 });
 
-describe("assertToolAllowedInReadOnlyMode", () => {
-  const on = { [READ_ONLY_ENV_VAR]: "1" };
-
-  it("allows anything when the mode is off", () => {
-    expect(() => assertToolAllowedInReadOnlyMode("zentrixpay_buy", {})).not.toThrow();
-  });
-
-  it("allows read-only tools when the mode is on", () => {
-    expect(() => assertToolAllowedInReadOnlyMode("zentrixpay_browse", on)).not.toThrow();
-  });
-
-  it("refuses mutating tools when the mode is on", () => {
-    expect(() => assertToolAllowedInReadOnlyMode("zentrixpay_buy", on)).toThrow(/Read-only mode/);
-  });
-});
-
 describe("readOnlyRefusalError", () => {
   const message = readOnlyRefusalError("zentrixpay_buy").message;
-
-  it("names the tool and the variable that caused the refusal", () => {
-    expect(message).toContain("zentrixpay_buy");
-    expect(message).toContain(READ_ONLY_ENV_VAR);
-  });
-
-  it("tells the agent what it can still do", () => {
-    expect(message).toContain("zentrixpay_browse");
-    expect(message).toContain("zentrixpay_search");
-  });
 
   it("says the restriction cannot be lifted from a tool call", () => {
     // The distinction from the mainnet guardrail, which *is* per-call
@@ -162,11 +105,6 @@ describe("readOnlyRefusalError", () => {
     expect(message).toMatch(/no tool argument can override it/i);
   });
 
-  it("is deterministic and leaks nothing", () => {
-    expect(readOnlyRefusalError("zentrixpay_buy").message).toBe(message);
-    expect(message).not.toMatch(/\/(home|Users|tmp)\//);
-    expect(message).not.toContain("at ");
-  });
 });
 
 describe("formatReadOnlyDiagnostics", () => {
@@ -204,25 +142,6 @@ describe("read-only mode through the MCP server", () => {
     delete process.env[READ_ONLY_ENV_VAR];
   });
 
-  it("advertises the full surface when the mode is off", async () => {
-    const { tools } = await harness.listTools();
-    expect(tools.some((t) => t.name === "zentrixpay_buy")).toBe(true);
-    expect(tools.some((t) => t.name === "zentrixpay_browse")).toBe(true);
-  });
-
-  it("advertises only read-only tools when the mode is on", async () => {
-    process.env[READ_ONLY_ENV_VAR] = "1";
-    const { tools } = await harness.listTools();
-
-    expect(tools.length).toBeGreaterThan(0);
-    for (const tool of tools) {
-      expect(isReadOnlyTool(tool.name), `${tool.name} is advertised in read-only mode`).toBe(true);
-    }
-    expect(tools.some((t) => t.name === "zentrixpay_browse")).toBe(true);
-    expect(tools.some((t) => t.name === "zentrixpay_buy")).toBe(false);
-    expect(tools.some((t) => t.name === "zentrixpay_reset")).toBe(false);
-  });
-
   it("re-reads the environment on every ListTools call", async () => {
     // The handler is not allowed to snapshot the mode at module load: the
     // listing has to reflect what dispatch will actually enforce.
@@ -236,56 +155,11 @@ describe("read-only mode through the MCP server", () => {
     expect(after).toBe(before);
   });
 
-  it("still browses the catalog in read-only mode", async () => {
-    process.env[READ_ONLY_ENV_VAR] = "1";
-    const result = await harness.callTool("zentrixpay_browse", {});
-
-    expect(harnessIsToolError(result)).toBe(false);
-    expect(harnessResultText(result)).toContain("mock-1");
-  });
-
-  it("still previews a resource in read-only mode", async () => {
-    process.env[READ_ONLY_ENV_VAR] = "1";
-    const result = await harness.callTool("zentrixpay_preview", { resourceId: "mock-1" });
-
-    expect(harnessIsToolError(result)).toBe(false);
-  });
-
-  it("refuses a withheld tool that a client calls anyway", async () => {
-    // The case the ListTools filter cannot cover: a stale tool list, or a
-    // client guessing the name. This is the check that makes the mode a
-    // guarantee rather than a hint.
-    process.env[READ_ONLY_ENV_VAR] = "1";
-    const result = await harness.callTool("zentrixpay_buy", { resourceId: "mock-1" });
-
-    expect(harnessIsToolError(result)).toBe(true);
-    expect(harnessResultText(result)).toContain("Read-only mode");
-  });
-
   it("refuses every non-read-only tool, not just the spending ones", async () => {
     process.env[READ_ONLY_ENV_VAR] = "1";
     for (const name of ["zentrixpay_reset", "zentrixpay_setup_wallet", "zentrixpay_restore_state"]) {
       await expect(dispatchTool(name, {}), name).rejects.toThrow(/Read-only mode/);
     }
-  });
-
-  it("refuses before validating arguments", async () => {
-    // A malformed-arguments error would be misleading when the server was never
-    // going to run the tool: the agent would "fix" the arguments and fail again.
-    process.env[READ_ONLY_ENV_VAR] = "1";
-    await expect(dispatchTool("zentrixpay_buy", { resourceId: "" })).rejects.toThrow(
-      /Read-only mode/,
-    );
-  });
-
-  it("refuses a dry run too", async () => {
-    // A dry run spends nothing, but read-only mode is about what this server is
-    // *for*, not about cost — and the paid-operation policy is the guardrail
-    // that exempts dry runs.
-    process.env[READ_ONLY_ENV_VAR] = "1";
-    await expect(
-      dispatchTool("zentrixpay_buy", { resourceId: "mock-1", dryRun: true }),
-    ).rejects.toThrow(/Read-only mode/);
   });
 
   it("restores the full surface once the mode is turned off", async () => {

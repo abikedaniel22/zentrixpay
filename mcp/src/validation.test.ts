@@ -238,35 +238,7 @@ describe.each(Object.keys(TOOL_ARGUMENT_SPECS))("%s", (tool) => {
 
 // ── 3. Semantics per argument kind ───────────────────────────────────────────
 
-describe("unknown tools", () => {
-  it("throws UnknownToolError naming the available tools", () => {
-    try {
-      validateToolArgs("zentrixpay_not_a_tool", {});
-      throw new Error("expected a throw");
-    } catch (err) {
-      expect(err).toBeInstanceOf(UnknownToolError);
-      expect((err as Error).message).toContain("Unknown tool: zentrixpay_not_a_tool");
-      expect((err as Error).message).toContain("zentrixpay_browse");
-    }
-  });
-});
-
 describe("string arguments", () => {
-  it("trims surrounding whitespace", () => {
-    const args = validateToolArgs("zentrixpay_search", { query: "  stellar  " });
-    expect(requiredString(args, "query")).toBe("stellar");
-  });
-
-  it("rejects an empty or whitespace-only required string", () => {
-    expect(expectInvalid("zentrixpay_search", { query: "" }).issues[0].code).toBe("empty_string");
-    expect(expectInvalid("zentrixpay_search", { query: "   " }).issues[0].code).toBe("empty_string");
-  });
-
-  it("enforces maxLength", () => {
-    const err = expectInvalid("zentrixpay_search", { query: "x".repeat(257) });
-    expect(err.issues[0].code).toBe("too_long");
-    expect(err.message).toContain("at most 256 characters");
-  });
 
   it("enforces minLength for passphrases", () => {
     const err = expectInvalid("zentrixpay_backup_state", { passphrase: "short" });
@@ -274,28 +246,6 @@ describe("string arguments", () => {
     expect(err.message).toContain("at least 8 characters");
     // The rejected passphrase must not appear in agent-facing output.
     expect(err.message).not.toContain("short");
-  });
-
-  it("rejects a resourceId that could alter the request path", () => {
-    for (const bad of ["../secrets", "res 001", "res/001", "res?x=1"]) {
-      expect(expectInvalid("zentrixpay_preview", { resourceId: bad }).issues[0].code).toBe(
-        "pattern_mismatch",
-      );
-    }
-  });
-
-  it("enforces the on-chain resource id and attestation hash limits", () => {
-    const invalidId = expectInvalid("zentrixpay_verify_attestation", {
-      resourceId: "res-001",
-      attestationHash: "a".repeat(64),
-    });
-    expect(invalidId.issues[0].code).toBe("pattern_mismatch");
-
-    const oversizedHash = expectInvalid("zentrixpay_verify_attestation", {
-      resourceId: "res001",
-      attestationHash: "a".repeat(65),
-    });
-    expect(oversizedHash.issues[0].code).toBe("too_long");
   });
 
   it("rejects a malformed email and accepts a valid one", () => {
@@ -316,27 +266,6 @@ describe("string arguments", () => {
     expect(err.issues[0].field).toBe("walletAddress");
   });
 
-  it("rejects a non-http externalUrl", () => {
-    const err = expectInvalid("zentrixpay_publish", {
-      title: "T",
-      price: "1.00",
-      externalUrl: "ftp://example.com/x",
-    });
-    expect(err.issues[0].field).toBe("externalUrl");
-    expect(err.message).toContain("http(s) URL");
-  });
-
-  it("rejects a non-decimal price", () => {
-    for (const price of ["free", "-1", "1.2.3", "1,50"]) {
-      const err = expectInvalid("zentrixpay_publish", {
-        title: "T",
-        price,
-        externalUrl: "https://example.com/x",
-      });
-      expect(err.issues[0].field).toBe("price");
-    }
-  });
-
   it("rejects an invalid profile name", () => {
     expect(expectInvalid("zentrixpay_use_profile", { name: "has space" }).issues[0].code).toBe(
       "pattern_mismatch",
@@ -344,27 +273,6 @@ describe("string arguments", () => {
     expect(expectInvalid("zentrixpay_use_profile", { name: "x".repeat(65) }).issues[0].code).toBe(
       "too_long",
     );
-  });
-});
-
-describe("enum arguments", () => {
-  it("accepts every advertised literal", () => {
-    for (const status of ["pending", "verified", "rejected", "skipped"]) {
-      expect(() =>
-        validateToolArgs("zentrixpay_search", { query: "x", verificationStatus: status }),
-      ).not.toThrow();
-    }
-    for (const type of ["file", "link"]) {
-      expect(() =>
-        validateToolArgs("zentrixpay_search", { query: "x", resourceType: type }),
-      ).not.toThrow();
-    }
-  });
-
-  it("rejects a value outside the set and lists the alternatives", () => {
-    const err = expectInvalid("zentrixpay_search", { query: "x", verificationStatus: "approved" });
-    expect(err.issues[0].code).toBe("not_in_enum");
-    expect(err.message).toContain("pending, verified, rejected, skipped");
   });
 });
 
@@ -405,14 +313,6 @@ describe("hash arguments", () => {
     expect(requiredString(args, "txHash")).toBe(VALID_SHA256);
   });
 
-  it("normalizes expectedMetadataHash to canonical algorithm:hex form", () => {
-    const args = validateToolArgs("zentrixpay_check_consistency", {
-      resourceId: "res-001",
-      expectedMetadataHash: VALID_SHA256,
-    });
-    expect(optionalString(args, "expectedMetadataHash")).toBe(`sha256:${VALID_SHA256}`);
-  });
-
   it("rejects a digest of the wrong length", () => {
     const err = expectInvalid("zentrixpay_tx_status", { txHash: VALID_SHA256.slice(0, 63) });
     expect(err.issues[0].code).toBe("invalid_hash");
@@ -426,179 +326,7 @@ describe("hash arguments", () => {
   });
 });
 
-describe("string_array arguments", () => {
-  it("accepts an array and keeps case and duplicates (#608)", () => {
-    const args = validateToolArgs("zentrixpay_batch_catalog_lookup", {
-      resourceIds: ["Res-001", "res-001"],
-    });
-    expect(requiredStringArray(args, "resourceIds")).toEqual(["Res-001", "res-001"]);
-  });
-
-  it("trims entries and drops empties", () => {
-    const args = validateToolArgs("zentrixpay_batch_catalog_lookup", {
-      resourceIds: [" res-001 ", "", "   ", "res-002"],
-    });
-    expect(requiredStringArray(args, "resourceIds")).toEqual(["res-001", "res-002"]);
-  });
-
-  it("accepts a comma-separated string", () => {
-    const args = validateToolArgs("zentrixpay_batch_catalog_lookup", {
-      resourceIds: "res-001, res-002,res-003",
-    });
-    expect(requiredStringArray(args, "resourceIds")).toEqual(["res-001", "res-002", "res-003"]);
-  });
-
-  it("rejects a non-string entry with a deterministic message", () => {
-    const err = expectInvalid("zentrixpay_batch_catalog_lookup", {
-      resourceIds: ["res-001", 42],
-    });
-    expect(err.issues[0].code).toBe("invalid_string_array");
-    expect(err.message).toContain("array of strings");
-    // Rejected values are never echoed back.
-    expect(err.message).not.toContain("42");
-  });
-
-  it("reports the position of a malformed entry", () => {
-    const err = expectInvalid("zentrixpay_batch_catalog_lookup", {
-      resourceIds: ["res-001", "not ok!"],
-    });
-    expect(err.issues[0].code).toBe("invalid_string_array");
-    expect(err.issues[0].message).toContain("resourceIds[2]");
-  });
-
-  it("rejects an empty selection after normalization", () => {
-    const err = expectInvalid("zentrixpay_batch_catalog_lookup", { resourceIds: [] });
-    expect(err.issues[0].code).toBe("invalid_string_array");
-    expect(err.message).toContain("at least 1");
-  });
-
-  it("rejects a batch above the advertised ceiling", () => {
-    const err = expectInvalid("zentrixpay_batch_catalog_lookup", { resourceIds: OVERSIZE_BATCH });
-    expect(err.issues[0].code).toBe("invalid_string_array");
-    expect(err.message).toContain(`at most ${BATCH_LOOKUP_MAX_IDS}`);
-  });
-
-  it("rejects a non-array bag for the batch field", () => {
-    const err = expectInvalid("zentrixpay_batch_catalog_lookup", { resourceIds: 7 });
-    expect(err.issues[0].code).toBe("invalid_string_array");
-    expect(err.message).toContain("array of strings or a comma-separated string");
-  });
-});
-
-describe("multi-issue reporting", () => {
-  it("reports every problem in one deterministic error", () => {
-    const err = expectInvalid("zentrixpay_publish", {
-      title: "",
-      price: "free",
-      externalUrl: "nope",
-      typo: 1,
-    });
-    const fields = err.issues.map((i) => i.field);
-    expect(fields).toEqual(["typo", "title", "price", "externalUrl"]);
-    expect(err.tool).toBe("zentrixpay_publish");
-    expect(err.message.startsWith("Invalid arguments for zentrixpay_publish:")).toBe(true);
-  });
-});
-
-describe("normalized output", () => {
-  it("returns only validated fields", () => {
-    const args = validateToolArgs("zentrixpay_publish", {
-      title: " Dataset ",
-      price: "5.00",
-      externalUrl: "https://example.com/data.json",
-    });
-    expect(args).toEqual({
-      title: "Dataset",
-      price: "5.00",
-      externalUrl: "https://example.com/data.json",
-    });
-    expect(optionalString(args, "description")).toBeUndefined();
-  });
-});
-
 // ── Catalog filters: the browse/search argument surface ─────────────────────
-
-describe("tag array arguments", () => {
-  it("normalizes, deduplicates, and accepts an empty replacement", () => {
-    const args = validateToolArgs("zentrixpay_set_tags", {
-      resourceId: "res-001",
-      tags: [" Dataset ", "dataset", "API"],
-    });
-    expect(requiredTagArray(args, "tags")).toEqual(["dataset", "api"]);
-    expect(
-      requiredTagArray(
-        validateToolArgs("zentrixpay_set_tags", { resourceId: "res-001", tags: [] }),
-        "tags",
-      ),
-    ).toEqual([]);
-  });
-
-  it("accepts the documented comma-separated convenience form", () => {
-    const args = validateToolArgs("zentrixpay_set_tags", {
-      resourceId: "res-001",
-      tags: "dataset, research",
-    });
-    expect(requiredTagArray(args, "tags")).toEqual(["dataset", "research"]);
-  });
-
-  it("rejects invalid tag arrays with a stable issue code", () => {
-    const tooMany = expectInvalid("zentrixpay_set_tags", {
-      resourceId: "res-001",
-      tags: Array.from({ length: 9 }, (_, i) => `tag-${i}`),
-    });
-    expect(tooMany.issues[0].code).toBe("invalid_tag_array");
-
-    const invalidCharacter = expectInvalid("zentrixpay_set_tags", {
-      resourceId: "res-001",
-      tags: ["not valid"],
-    });
-    expect(invalidCharacter.issues[0].code).toBe("invalid_tag_array");
-  });
-});
-
-describe("catalog filter arguments", () => {
-  it("accepts every sort value on browse and on search", () => {
-    for (const sort of ["newest", "price_asc", "price_desc", "title"]) {
-      expect(() => validateToolArgs("zentrixpay_browse", { sort })).not.toThrow();
-      expect(() => validateToolArgs("zentrixpay_search", { query: "x", sort })).not.toThrow();
-    }
-  });
-
-  it("rejects an unknown sort value", () => {
-    const err = expectInvalid("zentrixpay_browse", { sort: "cheapest" });
-    expect(err.issues[0].code).toBe("not_in_enum");
-  });
-
-  it("accepts the whole advertised filter set on browse", () => {
-    expect(() =>
-      validateToolArgs("zentrixpay_browse", {
-        query: "stellar",
-        minPrice: "0.10",
-        maxPrice: "5.00",
-        verificationStatus: "verified",
-        resourceType: "link",
-        owner: "Alice",
-        sort: "price_asc",
-        limit: 20,
-        offset: 0,
-        tags: "dataset,research",
-        listed: true,
-      }),
-    ).not.toThrow();
-  });
-
-  it("still reports a typo rather than silently ignoring it", () => {
-    const err = expectInvalid("zentrixpay_browse", { sortBy: "price" });
-    expect(err.issues[0].code).toBe("unknown_argument");
-    expect(err.issues[0].message).toContain("sort");
-  });
-
-  it("browse and search validate against the same argument names", () => {
-    expect(Object.keys(TOOL_ARGUMENT_SPECS.zentrixpay_browse).sort()).toEqual(
-      Object.keys(TOOL_ARGUMENT_SPECS.zentrixpay_search).sort(),
-    );
-  });
-});
 
 describe("zentrixpay_export_receipts arguments", () => {
   it("accepts the documented filters", () => {

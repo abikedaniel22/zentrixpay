@@ -44,21 +44,7 @@ export const MAINNET_GATED_TOOLS = [
   "zentrixpay_setup_wallet",
   "zentrixpay_repair_sponsored_account",
   "zentrixpay_register",
-  "zentrixpay_publish",
-  "zentrixpay_publish_batch",
-  "zentrixpay_buy",
-  "zentrixpay_buy_lease",
-  "zentrixpay_register_onchain",
   "zentrixpay_reset",
-  "zentrixpay_update_metadata",
-  "zentrixpay_set_price",
-  "zentrixpay_transfer_ownership",
-  "zentrixpay_accept_transfer",
-  "zentrixpay_cancel_transfer",
-  "zentrixpay_set_listed",
-  "zentrixpay_freeze",
-  "zentrixpay_royalty",
-  "zentrixpay_set_tags",
 ] as const;
 
 export type MainnetGatedTool = (typeof MAINNET_GATED_TOOLS)[number];

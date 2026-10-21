@@ -62,9 +62,8 @@ describe("renderers", () => {
 
   it("place every tool in a named group", () => {
     const ungrouped = TOOL_DEFINITIONS.map((t) => t.name).filter((n) => groupOf(n) === "Other");
-    // The catalog-cache recovery tool predates the grouping; nothing newer may
-    // land in "Other" unnoticed.
-    expect(ungrouped).toEqual(["zentrixpay_recover_catalog_cache"]);
+    // Nothing may land in "Other" unnoticed.
+    expect(ungrouped).toEqual([]);
   });
 });
 

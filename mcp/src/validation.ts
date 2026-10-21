@@ -30,11 +30,9 @@
 import { API_TOOL_DEFINITIONS } from "./apiTools.js";
 import { parseMetadataHash, MetadataHashError, METADATA_HASH_FORMAT_HINT } from "./metadataHash.js";
 import { CATALOG_MAX_LIMIT, CATALOG_SORT_VALUES } from "./catalogFilters.js";
-import { REGISTRY_LIST_MAX_LIMIT } from "./registryPagination.js";
 import { RECEIPT_EXPORT_MAX_LIMIT } from "./receipts.js";
 import { DEBUG_BUNDLE_MAX_AUDIT_LINES } from "./debugBundleSchema.js";
 import { TOOL_DEFINITIONS } from "./tools.js";
-import { MAX_SETTLEMENT_TIMEOUT_MS, MIN_SETTLEMENT_INTERVAL_MS } from "./settlement.js";
 
 // ── Spec model ────────────────────────────────────────────────────────────────
 
@@ -226,12 +224,10 @@ const CATALOG_FILTER_ARGS: ToolArgumentSpec = {
  * by accident.
  */
 export const TOOLS_WITHOUT_ARG_VALIDATION: readonly string[] = [
-  "zentrixpay_publish_status",
   "zentrixpay_purchase_history",
   // items is an array of objects — the generic validator handles only flat
   // string/flag/hash/integer/enum/tag_array fields. Argument shape is enforced
   // by the input schema in tools.ts and validated inline in the dispatch handler.
-  "zentrixpay_publish_batch",
   // Pay-per-call API tools validate their own arguments in apiTools.ts.
   ...API_TOOL_DEFINITIONS.map((tool) => tool.name),
 ];
@@ -260,9 +256,6 @@ export const TOOL_ARGUMENT_SPECS: Record<string, ToolArgumentSpec> = {
     network: { kind: "enum", values: ["testnet", "mainnet"], required: true },
   },
   zentrixpay_list_profiles: {},
-  zentrixpay_browse: { ...CATALOG_FILTER_ARGS },
-  zentrixpay_search: { ...CATALOG_FILTER_ARGS },
-  zentrixpay_preview: { resourceId: RESOURCE_ID },
   zentrixpay_register: {
     name: { kind: "string", required: true, maxLength: 128 },
     email: {
@@ -280,35 +273,6 @@ export const TOOL_ARGUMENT_SPECS: Record<string, ToolArgumentSpec> = {
     },
     confirmMainnet: CONFIRM_MAINNET,
   },
-  zentrixpay_publish: {
-    title: { kind: "string", required: true, maxLength: 256 },
-    description: { kind: "string", maxLength: 2048 },
-    price: { ...USDC_AMOUNT, required: true },
-    externalUrl: {
-      kind: "string",
-      required: true,
-      maxLength: 2048,
-      pattern: /^https?:\/\/[^\s]+$/,
-      patternHint: "an http(s) URL, e.g. https://example.com/data.json",
-    },
-    dryRun: DRY_RUN,
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_buy: {
-    resourceId: RESOURCE_ID,
-    dryRun: DRY_RUN,
-    maxAutoPayUsdc: { ...USDC_AMOUNT, required: false },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-    wait: { kind: "flag" },
-    timeoutMs: {
-      kind: "integer",
-      min: 0,
-      max: MAX_SETTLEMENT_TIMEOUT_MS,
-    },
-    intervalMs: { kind: "integer", min: MIN_SETTLEMENT_INTERVAL_MS },
-  },
   zentrixpay_export_receipts: {
     format: { kind: "enum", values: ["json", "csv", "ndjson"] },
     resourceId: { ...RESOURCE_ID, required: false },
@@ -318,49 +282,7 @@ export const TOOL_ARGUMENT_SPECS: Record<string, ToolArgumentSpec> = {
     limit: { kind: "integer", min: 1, max: RECEIPT_EXPORT_MAX_LIMIT },
     groupBy: { kind: "enum", values: ["month"] },
   },
-  zentrixpay_register_onchain: {
-    resourceId: RESOURCE_ID,
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_buy_lease: {
-    resourceId: RESOURCE_ID,
-    tier: { kind: "enum", required: true, values: ["hour", "day", "week"] },
-    dryRun: DRY_RUN,
-    maxAutoPayUsdc: { kind: "string", maxLength: 32 },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_lease_status: {
-    resourceId: RESOURCE_ID,
-    holder: STELLAR_ADDRESS,
-  },
-  zentrixpay_agent_status: {},
-  zentrixpay_registry_info: {},
-  zentrixpay_terms: {
-    operation: { kind: "enum", required: true, values: ["get", "set"] },
-    creator: STELLAR_ADDRESS,
-    termsHash: { kind: "string", maxLength: 64 },
-    confirmMainnet: CONFIRM_MAINNET,
-  },
   zentrixpay_network_profile: {},
-  zentrixpay_check_bindings: {},
-  zentrixpay_check_consistency: {
-    resourceId: RESOURCE_ID,
-    expectedMetadataHash: { kind: "hash" },
-  },
-  zentrixpay_verify_attestation: {
-    resourceId: ON_CHAIN_RESOURCE_ID,
-    attestationHash: ATTESTATION_HASH,
-  },
-  zentrixpay_registry_lookup: { resourceId: RESOURCE_ID },
-  zentrixpay_registry_list: {
-    start: { kind: "integer", min: 0 },
-    limit: { kind: "integer", min: 1, max: REGISTRY_LIST_MAX_LIMIT },
-  },
-  zentrixpay_registry_count: {
-    creator: { kind: "string" },
-  },
   zentrixpay_tx_status: { txHash: { kind: "hash", required: true, bareHex: true } },
   // `confirm` is what resetGuard.isResetConfirmed reads. It was advertised in
   // ListTools and absent here, so every confirmed reset failed validation as an
@@ -371,8 +293,6 @@ export const TOOL_ARGUMENT_SPECS: Record<string, ToolArgumentSpec> = {
     confirmMainnet: CONFIRM_MAINNET,
   },
   zentrixpay_backup_state: { passphrase: PASSPHRASE, confirm: { kind: "flag" } },
-  zentrixpay_resource_provenance: { resourceId: RESOURCE_ID },
-  zentrixpay_resource_change_log: { resourceId: RESOURCE_ID },
   zentrixpay_restore_state: {
     blob: { kind: "string", required: true, maxLength: 1_048_576 },
     passphrase: PASSPHRASE,
@@ -382,69 +302,7 @@ export const TOOL_ARGUMENT_SPECS: Record<string, ToolArgumentSpec> = {
     auditLogLines: { kind: "integer", min: 0, max: DEBUG_BUNDLE_MAX_AUDIT_LINES },
     includeEnvironment: { kind: "flag" },
   },
-  zentrixpay_set_tags: {
-    resourceId: RESOURCE_ID,
-    tags: { kind: "tag_array", required: true },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_update_metadata: {
-    resourceId: RESOURCE_ID,
-    metadata: METADATA_POINTER,
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_set_price: {
-    resourceId: RESOURCE_ID,
-    price: { ...USDC_AMOUNT, required: true },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_transfer_ownership: {
-    resourceId: RESOURCE_ID,
-    newCreator: { ...STELLAR_ADDRESS, required: true },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_accept_transfer: {
-    resourceId: RESOURCE_ID,
-    confirmMainnet: CONFIRM_MAINNET,
-  },
-  zentrixpay_cancel_transfer: {
-    resourceId: RESOURCE_ID,
-    confirmMainnet: CONFIRM_MAINNET,
-  },
-  zentrixpay_pending_transfer: {
-    resourceId: RESOURCE_ID,
-  },
-  zentrixpay_set_listed: {
-    resourceId: RESOURCE_ID,
-    listed: { kind: "flag", required: true },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_freeze: {
-    resourceId: RESOURCE_ID,
-    confirm: {
-      kind: "string",
-      required: true,
-      pattern: /^freeze_metadata$/,
-      patternHint: 'the exact string "freeze_metadata"',
-    },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
-  zentrixpay_fee_config: {},
-  zentrixpay_royalty: {
-    resourceId: RESOURCE_ID,
-    royaltyRecipient: STELLAR_ADDRESS,
-    clear: { kind: "flag" },
-    confirmMainnet: CONFIRM_MAINNET,
-    confirmPaid: CONFIRM_PAID,
-  },
   zentrixpay_check_state_permissions: {},
-  zentrixpay_registry_health: {},
-  zentrixpay_prewarm_catalog: {},
   zentrixpay_client_config: {
     client: {
       kind: "enum",
@@ -468,7 +326,6 @@ export const TOOL_ARGUMENT_SPECS: Record<string, ToolArgumentSpec> = {
     confirmMainnet: CONFIRM_MAINNET,
   },
   zentrixpay_verify_install: {},
-  zentrixpay_recover_catalog_cache: {},
   zentrixpay_wallet_balances: {},
   zentrixpay_server_endpoints: {},
 };

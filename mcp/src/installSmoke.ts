@@ -38,10 +38,6 @@ import type { SmokeReport, SmokeStep } from "./smoke.js";
 export const REQUIRED_INSTALL_TOOLS = [
   "zentrixpay_verify_install",
   "zentrixpay_wallet_info",
-  "zentrixpay_browse",
-  "zentrixpay_search",
-  "zentrixpay_preview",
-  "zentrixpay_buy",
 ] as const;
 
 /** Resource id seeded by the mock fixtures; every fixture-backed step uses it. */
@@ -100,41 +96,6 @@ export function buildInstallSmokeSteps(): SmokeStep[] {
       expect: (text) => /^✓ ZentrixPay MCP install OK\./m.test(text),
       expectMessage:
         "zentrixpay_verify_install reported a problem with the installation (see the ✗ lines below).",
-    },
-    {
-      label: "Browse catalog (fixtures)",
-      tool: "zentrixpay_browse",
-      expect: (text) => text.includes(FIXTURE_RESOURCE_ID),
-      expectMessage: `Browse did not return the seeded fixture resource ${FIXTURE_RESOURCE_ID}. Is ZENTRIXPAY_MOCK=1 set for the server process?`,
-    },
-    {
-      label: "Browse sorted by price",
-      tool: "zentrixpay_browse",
-      args: { sort: "price_asc", limit: 10 },
-      expect: (text) => text.includes(FIXTURE_RESOURCE_ID),
-      expectMessage:
-        "Sorted browse failed — the catalog sort arguments are advertised but not accepted.",
-    },
-    {
-      label: "Search catalog (fixtures)",
-      tool: "zentrixpay_search",
-      args: { query: "Stellar" },
-      expect: (text) => text.includes(FIXTURE_RESOURCE_ID),
-      expectMessage: "Search did not match the seeded fixture resource.",
-    },
-    {
-      label: "Preview resource (fixtures)",
-      tool: "zentrixpay_preview",
-      args: { resourceId: FIXTURE_RESOURCE_ID },
-      expect: (text) => text.includes(FIXTURE_RESOURCE_ID),
-      expectMessage: "Preview did not return the seeded fixture resource.",
-    },
-    {
-      label: "Registry lookup (fixtures)",
-      tool: "zentrixpay_registry_lookup",
-      args: { resourceId: FIXTURE_RESOURCE_ID },
-      expect: (text) => text.includes('"found": true'),
-      expectMessage: "Registry lookup did not find the seeded fixture resource.",
     },
     {
       label: "Export receipts",

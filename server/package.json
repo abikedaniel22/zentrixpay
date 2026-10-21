@@ -14,8 +14,6 @@
     "db:studio": "drizzle-kit studio",
     "generate-wallet": "tsx scripts/generate-wallet.ts",
     "setup-usdc": "tsx scripts/setup-usdc.ts",
-    "e2e": "tsx scripts/e2e-test.ts",
-    "reconcile": "tsx scripts/reconcile.ts",
     "seed": "tsx scripts/seed.ts",
     "test": "vitest run"
   },

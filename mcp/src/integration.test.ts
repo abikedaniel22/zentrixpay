@@ -45,29 +45,6 @@ describe("MCP integration harness", () => {
     _resetProfiles();
   });
 
-  it("lists tools through the SDK request interface", async () => {
-    const { tools } = await harness.listTools();
-    const names = tools.map((t) => t.name).sort();
-
-    expect(names).toContain("zentrixpay_browse");
-    expect(names).toContain("zentrixpay_search");
-    expect(names).toContain("zentrixpay_preview");
-    expect(names).toContain("zentrixpay_registry_info");
-    expect(names).toContain("zentrixpay_registry_lookup");
-    expect(names).toContain("zentrixpay_registry_list");
-    expect(names).toContain("zentrixpay_registry_count");
-    expect(names).toContain("zentrixpay_setup_wallet");
-    expect(names).toContain("zentrixpay_set_tags");
-
-    expect(names.length).toBeGreaterThanOrEqual(15);
-
-    for (const tool of tools) {
-      expect(tool.name).toMatch(/^zentrixpay_/);
-      expect(typeof tool.description).toBe("string");
-      expect((tool.description ?? "").length).toBeGreaterThan(0);
-    }
-  });
-
   it("advertises MCP annotations for every tool (#552)", async () => {
     const { tools } = await harness.listTools();
     expect(tools.length).toBeGreaterThan(0);
@@ -128,103 +105,6 @@ describe("MCP integration harness", () => {
     );
   });
 
-  it("calls zentrixpay_browse with mocked catalog fixtures", async () => {
-    const result = await harness.callTool("zentrixpay_browse");
-    expect(harnessIsToolError(result)).toBe(false);
-    const text = harnessResultText(result);
-    expect(text).toContain("mock-1");
-    expect(text).toContain("Intro to Stellar");
-    expect(text).toContain("mock-2");
-  });
-
-  it("calls zentrixpay_search and zentrixpay_preview with mocked fetch", async () => {
-    const search = await harness.callTool("zentrixpay_search", { query: "Stellar" });
-    expect(harnessIsToolError(search)).toBe(false);
-    expect(harnessResultText(search)).toContain("mock-1");
-
-    const preview = await harness.callTool("zentrixpay_preview", { resourceId: "mock-1" });
-    expect(harnessIsToolError(preview)).toBe(false);
-    const previewText = harnessResultText(preview);
-    expect(previewText).toContain("mock-1");
-    expect(previewText).toMatch(/1\.5|1\.50/);
-  });
-
-  it("calls zentrixpay_registry_lookup with mocked registry dependency", async () => {
-    const hit = await harness.callTool("zentrixpay_registry_lookup", { resourceId: "mock-1" });
-    expect(harnessIsToolError(hit)).toBe(false);
-    const hitText = harnessResultText(hit);
-    expect(hitText).toContain('"found": true');
-    expect(hitText).toContain("on-chain (mock)");
-
-    const miss = await harness.callTool("zentrixpay_registry_lookup", {
-      resourceId: "does-not-exist",
-    });
-    expect(harnessIsToolError(miss)).toBe(false);
-    expect(harnessResultText(miss)).toContain('"found": false');
-  });
-
-  it("calls zentrixpay_registry_list with mocked on-chain pagination", async () => {
-    const page = await harness.callTool("zentrixpay_registry_list", { start: 0, limit: 20 });
-    expect(harnessIsToolError(page)).toBe(false);
-    const text = harnessResultText(page);
-    expect(text).toContain("mock-1");
-    expect(text).toContain("mock-2");
-    expect(text).toContain('"count": 2');
-
-    const empty = await harness.callTool("zentrixpay_registry_list", { start: 99, limit: 20 });
-    expect(harnessIsToolError(empty)).toBe(false);
-    expect(harnessResultText(empty)).toContain('"count": 0');
-    expect(harnessResultText(empty)).toMatch(/No on-chain resources in range/);
-  });
-
-  it("calls zentrixpay_registry_count and returns global counts", async () => {
-    const result = await harness.callTool("zentrixpay_registry_count", {});
-    expect(harnessIsToolError(result)).toBe(false);
-    const text = harnessResultText(result);
-    const data = JSON.parse(text);
-    expect(data.source).toBe("on-chain (mock)");
-    // MOCK_REGISTRY_RESOURCES has 2 entries, both listed
-    expect(data.count).toBe(2);
-    expect(data.listedCount).toBe(2);
-    expect(data.creatorCount).toBeUndefined();
-    expect(data.creator).toBeUndefined();
-  });
-
-  it("calls zentrixpay_registry_count with a creator and returns creatorCount", async () => {
-    const result = await harness.callTool("zentrixpay_registry_count", {
-      creator: "GMOCKCREATOR1",
-    });
-    expect(harnessIsToolError(result)).toBe(false);
-    const data = JSON.parse(harnessResultText(result));
-    expect(data.creator).toBe("GMOCKCREATOR1");
-    expect(typeof data.creatorCount).toBe("number");
-  });
-
-  it("calls zentrixpay_recover_catalog_cache and returns guidance", async () => {
-    const result = await harness.callTool("zentrixpay_recover_catalog_cache");
-    expect(harnessIsToolError(result)).toBe(false);
-    const text = harnessResultText(result);
-    expect(text.toLowerCase()).toContain("catalog");
-    expect(text.toLowerCase()).toContain("recover");
-  });
-
-  it("browses the catalog sorted by price through callTool", async () => {
-    const sorted = await harness.callTool("zentrixpay_browse", { sort: "price_asc", limit: 10 });
-    expect(harnessIsToolError(sorted)).toBe(false);
-    const text = harnessResultText(sorted);
-    // mock-2 is $0.5 and mock-1 is $1.5, so ascending price puts mock-2 first.
-    expect(text.indexOf("mock-2")).toBeLessThan(text.indexOf("mock-1"));
-
-    const descending = await harness.callTool("zentrixpay_browse", { sort: "price_desc" });
-    const descendingText = harnessResultText(descending);
-    expect(descendingText.indexOf("mock-1")).toBeLessThan(descendingText.indexOf("mock-2"));
-  });
-
-  it("rejects a sort value the catalog does not support", async () => {
-    const result = await harness.callTool("zentrixpay_browse", { sort: "cheapest" });
-    expect(harnessResultText(result)).toContain("newest, price_asc, price_desc, title");
-  });
-
   it("exports receipts as a structured document with an advertised schema", async () => {
     const { tools } = await harness.listTools();
     const exportTool = tools.find((t) => t.name === "zentrixpay_export_receipts");
@@ -259,45 +139,6 @@ describe("MCP integration harness", () => {
     // Nothing shaped like a Stellar secret key, whatever the server had loaded.
     expect(text).not.toMatch(/S[A-Z2-7]{55}/);
     expect(harnessStructuredContent(result)).toEqual(parsed);
-  });
-
-  it("returns structuredContent alongside preview and registry lookup text (#553)", async () => {
-    const preview = await harness.callTool("zentrixpay_preview", { resourceId: "mock-1" });
-    expect(harnessIsToolError(preview)).toBe(false);
-    const previewText = harnessResultText(preview);
-    expect(previewText).toContain("mock-1");
-    const previewData = harnessStructuredContent(preview);
-    expect(previewData?.id).toBe("mock-1");
-    expect(previewData).toHaveProperty("price");
-    expect(JSON.parse(previewText)).toEqual(previewData);
-
-    const hit = await harness.callTool("zentrixpay_registry_lookup", { resourceId: "mock-1" });
-    expect(harnessIsToolError(hit)).toBe(false);
-    const hitData = harnessStructuredContent(hit);
-    expect(hitData?.found).toBe(true);
-    expect(hitData).toHaveProperty("id");
-  });
-
-  it("keeps browse and wallet text unchanged while attaching a sidecar (#553)", async () => {
-    const browse = await harness.callTool("zentrixpay_browse");
-    expect(harnessIsToolError(browse)).toBe(false);
-    const browseText = harnessResultText(browse);
-    expect(browseText).toContain("mock-1");
-    expect(browseText).toMatch(/\[mock-1]/);
-    const browseData = harnessStructuredContent(browse);
-    expect(Array.isArray(browseData?.items)).toBe(true);
-    const first = (browseData?.items as Array<{ id?: string; price?: unknown }>)[0];
-    expect(first).toHaveProperty("id");
-    expect(first).toHaveProperty("price");
-
-    const setup = await harness.callTool("zentrixpay_setup_wallet");
-    expect(harnessIsToolError(setup)).toBe(false);
-    const setupText = harnessResultText(setup);
-    expect(setupText).toContain("Address:");
-    expect(setupText).toMatch(/G[A-Z0-9]{55}/);
-    const setupData = harnessStructuredContent(setup);
-    expect(typeof setupData?.address).toBe("string");
-    expect(setupData?.address).toMatch(/G[A-Z0-9]{55}/);
   });
 
   it("leaves text-only tools without structuredContent or outputSchema (#553)", async () => {
