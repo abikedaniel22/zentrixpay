@@ -14,7 +14,7 @@
  * problem can quote it and an operator can `grep` straight to the relevant
  * lines:
  *
- *     $ jq -c 'select(.correlationId == "mv-1a2b3c-d4e5")' audit.jsonl
+ *     $ jq -c 'select(.correlationId == "zp-1a2b3c-d4e5")' audit.jsonl
  *
  * The context is an `AsyncLocalStorage`, not a module-level variable. The
  * server handles tool calls concurrently, and a shared mutable "current ID"
@@ -27,7 +27,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Prefix, so an ID is recognisable on sight in a mixed log. */
-const ID_PREFIX = "mv";
+const ID_PREFIX = "zp";
+
+/** Shape of a minted ID: `<prefix>-<base36 time>-<4 base36 digits>`. */
+const ID_PATTERN = new RegExp(`^${ID_PREFIX}-[0-9a-z]+-[0-9a-z]{4}$`);
 
 /** Key under which the ID travels in an MCP result's `_meta`. */
 export const CORRELATION_META_KEY = "zentrixpay/correlationId";
@@ -43,7 +46,7 @@ export const correlationStorage = new AsyncLocalStorage<string>();
 /**
  * Mint a correlation ID.
  *
- * Format: `mv-<time>-<random>`, both base36. The time component sorts
+ * Format: `zp-<time>-<random>`, both base36. The time component sorts
  * chronologically as a string, so IDs from one session group naturally when a
  * log is sorted; the four-digit random component distinguishes calls that
  * share a millisecond.
@@ -72,7 +75,7 @@ export function newCorrelationId(
 
 /** Whether a string looks like an ID this module minted. */
 export function isCorrelationId(value: unknown): value is string {
-  return typeof value === "string" && /^mv-[0-9a-z]+-[0-9a-z]{4}$/.test(value);
+  return typeof value === "string" && ID_PATTERN.test(value);
 }
 
 /**
