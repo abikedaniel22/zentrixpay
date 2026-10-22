@@ -18,7 +18,7 @@ describe("overallReadinessStatus", () => {
         sorobanRpc: {
           status: "error",
           latencyMs: 2,
-          error: "timeout",
+          error: "soroban_rpc_unavailable",
         },
       }),
     ).toBe("error");
