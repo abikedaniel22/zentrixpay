@@ -70,7 +70,7 @@ const envSchema = z.object({
   VERIFICATION_PROMPT_COST_PER_1M: z.coerce.number().nonnegative().default(3),
   VERIFICATION_COMPLETION_COST_PER_1M: z.coerce.number().nonnegative().default(15),
 
-  // Rate limiting (verify-content + publish)
+  // Rate limiting (verify-content + publish + publisher registration)
   RATE_LIMIT_VERIFY_IP_MAX: z.coerce.number().default(10),
   RATE_LIMIT_VERIFY_IP_WINDOW_MS: z.coerce.number().default(60_000),
   RATE_LIMIT_VERIFY_WALLET_MAX: z.coerce.number().default(5),
@@ -79,6 +79,9 @@ const envSchema = z.object({
   RATE_LIMIT_PUBLISH_IP_WINDOW_MS: z.coerce.number().default(60_000),
   RATE_LIMIT_PUBLISH_WALLET_MAX: z.coerce.number().default(10),
   RATE_LIMIT_PUBLISH_WALLET_WINDOW_MS: z.coerce.number().default(3_600_000),
+  // Public publisher registration (POST /publishers), limited per client IP.
+  RATE_LIMIT_REGISTER_IP_MAX: z.coerce.number().int().min(1).default(5),
+  RATE_LIMIT_REGISTER_IP_WINDOW_MS: z.coerce.number().int().positive().default(3_600_000),
 
   // Optional Redis URL for a shared sliding-window rate-limit store (multi-instance).
   REDIS_URL: z.string().url().optional(),

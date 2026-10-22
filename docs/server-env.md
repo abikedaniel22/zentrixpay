@@ -36,6 +36,8 @@ and fill in each value.
 | `RATE_LIMIT_PUBLISH_IP_WINDOW_MS` | no | `60000` | Publish IP rate-limit window in ms |
 | `RATE_LIMIT_PUBLISH_WALLET_MAX` | no | `10` | Max publish requests per publisher wallet per window |
 | `RATE_LIMIT_PUBLISH_WALLET_WINDOW_MS` | no | `3600000` | Publish wallet rate-limit window in ms |
+| `RATE_LIMIT_REGISTER_IP_MAX` | no | `5` | Max publisher registrations (`POST /publishers`) per IP per window |
+| `RATE_LIMIT_REGISTER_IP_WINDOW_MS` | no | `3600000` | Publisher registration IP rate-limit window in ms |
 | `REQUEST_TIMEOUT_MS` | no | `30000` | Per-request timeout; slow upstreams return 503 |
 | `GRACEFUL_SHUTDOWN_TIMEOUT_MS` | no | `10000` | Max time to drain in-flight requests on SIGTERM/SIGINT |
 | `IDEMPOTENCY_TTL_MS` | no | `86400000` | How long a publish Idempotency-Key is remembered (24h) |
