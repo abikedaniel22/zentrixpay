@@ -14,7 +14,7 @@ Every tool call now runs under a correlation ID.
 ## Shape
 
 ```
-mv-1a2b3c4d-e5f6
+zp-1a2b3c4d-e5f6
 │  │        └── random, base36, fixed width
 │  └── timestamp, base36 — sorts chronologically as a string
 └── prefix, so it is recognisable in a mixed log
@@ -29,10 +29,10 @@ into a `grep`.
 requests made underneath it:
 
 ```
-$ jq -c 'select(.correlationId == "mv-1a2b3c4d-e5f6")' audit.jsonl
-{"timestamp":"…","toolName":"zentrixpay_buy","status":"start","correlationId":"mv-1a2b3c4d-e5f6"}
-{"timestamp":"…","method":"GET","endpoint":"…","source":"api","correlationId":"mv-1a2b3c4d-e5f6"}
-{"timestamp":"…","toolName":"zentrixpay_buy","status":"error","correlationId":"mv-1a2b3c4d-e5f6"}
+$ jq -c 'select(.correlationId == "zp-1a2b3c4d-e5f6")' audit.jsonl
+{"timestamp":"…","toolName":"zentrixpay_buy","status":"start","correlationId":"zp-1a2b3c4d-e5f6"}
+{"timestamp":"…","method":"GET","endpoint":"…","source":"api","correlationId":"zp-1a2b3c4d-e5f6"}
+{"timestamp":"…","toolName":"zentrixpay_buy","status":"error","correlationId":"zp-1a2b3c4d-e5f6"}
 ```
 
 **In the tool result's `_meta`**, under `zentrixpay/correlationId` — the key MCP
@@ -41,7 +41,7 @@ reserves for out-of-band annotation:
 ```json
 {
   "content": [{ "type": "text", "text": "…" }],
-  "_meta": { "zentrixpay/correlationId": "mv-1a2b3c4d-e5f6" }
+  "_meta": { "zentrixpay/correlationId": "zp-1a2b3c4d-e5f6" }
 }
 ```
 
@@ -52,7 +52,7 @@ every successful call, for no benefit.
 **In the error text**, on failures only:
 
 ```
-Error: Payment failed: insufficient balance [correlation: mv-1a2b3c4d-e5f6]
+Error: Payment failed: insufficient balance [correlation: zp-1a2b3c4d-e5f6]
 ```
 
 A failure is the one case where a human is likely to quote the ID back, so it

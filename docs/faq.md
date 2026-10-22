@@ -2,7 +2,7 @@
 
 This FAQ covers the ZentrixPay gateway: how providers register and get paid, how callers (agents) pay for calls, how secrets are stored, and what happens when things go wrong. It replaces the older vault-oriented FAQ.
 
-If you're looking for deployment steps, see the [Deployment Runbook](./deployment.md). For the protocol-level details, see the [Architecture Overview](./architecture.md) and the [API Reference](./api.md).
+If you're looking for deployment steps, see the [Deployment Runbook](./deployment-runbook.md). For the protocol-level details, see the [Architecture Overview](./architecture.md) and the [API Examples](./api-examples.md).
 
 ---
 
@@ -10,7 +10,7 @@ If you're looking for deployment steps, see the [Deployment Runbook](./deploymen
 
 ### 1. What fees does the gateway charge?
 
-The gateway charges a small protocol fee on each successful call, taken from the amount the caller pays. The fee is a percentage of the call price and is deducted before the provider's payout is credited. The current fee schedule is published in the [Deployment Runbook](./deployment.md) and is configurable per deployment.
+The gateway charges a small protocol fee on each successful call, taken from the amount the caller pays. The fee is a percentage of the call price and is deducted before the provider's payout is credited. The current fee schedule is published in the [Deployment Runbook](./deployment-runbook.md) and is configurable per deployment.
 
 ### 2. Who pays the fee — the caller or the provider?
 
@@ -42,7 +42,7 @@ The gateway returns an error to the caller describing the failure (timeout, upst
 
 ### 8. Can a provider be penalized for repeated failures?
 
-Yes. The gateway tracks per-provider success rates. Providers with sustained failures may be deprioritized in routing or temporarily suspended. See the [Deployment Runbook](./deployment.md) for the current thresholds.
+Yes. The gateway tracks per-provider success rates. Providers with sustained failures may be deprioritized in routing or temporarily suspended. See the [Deployment Runbook](./deployment-runbook.md) for the current thresholds.
 
 ---
 
@@ -58,7 +58,7 @@ Automatic non-charges are immediate. Manual refunds for disputed calls are proce
 
 ### 11. Can I dispute a charge?
 
-Yes. If you believe a call was billed incorrectly, open a dispute with the call ID. The gateway will review the recorded request/response and either uphold the charge or refund it. Disputes must be filed within the window documented in the [Deployment Runbook](./deployment.md).
+Yes. If you believe a call was billed incorrectly, open a dispute with the call ID. The gateway will review the recorded request/response and either uphold the charge or refund it. Disputes must be filed within the window documented in the [Deployment Runbook](./deployment-runbook.md).
 
 ---
 
@@ -90,7 +90,7 @@ The gateway settles in USDC. On testnet deployments it uses **testnet USDC**, wh
 
 ### 17. How do I get testnet USDC?
 
-Testnet USDC is available from the faucet linked in the [Deployment Runbook](./deployment.md). You can also mint it directly if you control the test token contract on your local deployment.
+Testnet USDC is available from the faucets listed in the [Stellar Testnet Funding Guide](./stellar-testnet-funding.md). You can also mint it directly if you control the test token contract on your local deployment.
 
 ### 18. Is testnet USDC the same as mainnet USDC?
 
@@ -106,7 +106,7 @@ No. Testnet balances, provider registrations, and call history are isolated to t
 
 ### 20. How do I register as a provider?
 
-Register through the provider API by submitting your endpoint, pricing, and the upstream headers the gateway should use. Registration is free. Once registered and verified, your endpoint becomes eligible for routing. Full steps are in the [Deployment Runbook](./deployment.md).
+Register through the provider API by submitting your endpoint, pricing, and the upstream headers the gateway should use. Registration is free. Once registered and verified, your endpoint becomes eligible for routing. Full steps are in the [Provider Quickstart](./provider-quickstart.md).
 
 ### 21. What do I need before registering?
 
@@ -130,7 +130,7 @@ Ownership verification proves that you control the endpoint (or the on-chain ide
 
 ### 25. How does verification work?
 
-The gateway issues a challenge — typically a token to serve at a well-known path on your endpoint, or a signed message from your payout address. You complete the challenge, and the gateway marks the provider as verified. Details are in the [Deployment Runbook](./deployment.md).
+The gateway issues a challenge — typically a token to serve at a well-known path on your endpoint, or a signed message from your payout address. You complete the challenge, and the gateway marks the provider as verified. Details are in the [Provider Quickstart](./provider-quickstart.md).
 
 ### 26. What happens if I'm not verified?
 
@@ -158,7 +158,7 @@ The gateway rejects calls when the balance is insufficient to cover the price, r
 
 ### 31. How do providers get paid?
 
-Provider earnings accrue to their gateway balance as calls succeed. Providers withdraw on the normal payout schedule (see the [Deployment Runbook](./deployment.md)), which settles on-chain in USDC. Payouts require completed ownership verification.
+Provider earnings accrue to their gateway balance as calls succeed. Providers withdraw on the normal payout schedule (see the [Deployment Runbook](./deployment-runbook.md)), which settles on-chain in USDC. Payouts require completed ownership verification.
 
 ### 32. Can an agent set a spending limit?
 
@@ -168,6 +168,6 @@ Yes. Callers can configure per-call and per-period spending limits on their gate
 
 ## Still have questions?
 
-- Deployment, configuration, and operational thresholds: [Deployment Runbook](./deployment.md)
+- Deployment, configuration, and operational thresholds: [Deployment Runbook](./deployment-runbook.md)
 - Protocol and key-management details: [Architecture Overview](./architecture.md)
-- Endpoint and field-level details: [API Reference](./api.md)
+- Endpoint and field-level details: [API Examples](./api-examples.md)

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { publishers, resources } from "../db/schema.js";
+import { publishers } from "../db/schema.js";
 import { generateApiKey, hashApiKey } from "../utils/crypto.js";
 
 export async function registerPublisher(data: {
@@ -44,8 +44,4 @@ export async function getPublisherById(id: string) {
     .from(publishers)
     .where(eq(publishers.id, id))
     .then((rows) => rows[0] ?? null);
-}
-
-export async function getPublisherResources(publisherId: string) {
-  return db.select().from(resources).where(eq(resources.publisherId, publisherId));
 }

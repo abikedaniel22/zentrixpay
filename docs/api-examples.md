@@ -1,38 +1,35 @@
 # API Examples
 
-curl examples for all core ZentrixPay API workflows. Replace placeholder values (`<...>`) with real values.
+curl examples for the core ZentrixPay gateway workflows. Replace placeholder values (`<...>`) with real values.
 
 ```
-BASE=https://mindvault-hyr3.onrender.com   # or http://localhost:4021 for local dev
-API_KEY=mv_...                             # from POST /publishers response
-RESOURCE_ID=swcn98besxpp6t1u8e77fqz3      # from POST /resources or GET /resources
+BASE=http://localhost:4021   # or your deployed server URL
+API_KEY=zp_...               # from the POST /publishers response
+API_ID=<api-id>              # from POST /apis or GET /apis
 ```
+
+For a guided, end-to-end walkthrough see the [Provider Quickstart](provider-quickstart.md). For the payment handshake in detail see the [curl 402 walkthrough](curl-402-walkthrough.md).
 
 ---
 
-## Health Check
+## Health check
 
 ```bash
 curl -s $BASE/health
-```
-
-Expected response:
-
-```json
-{ "status": "ok" }
+curl -s $BASE/health/ready   # also checks the database
 ```
 
 ---
 
-## Publisher Registration
+## Providers
 
-### Register a publisher
+### Register a provider
 
 ```bash
 curl -s -X POST $BASE/publishers \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Alice Creator",
+    "name": "Alice",
     "email": "alice@example.com",
     "walletAddress": "GB6LGS25BCTVQSIXNCXDTRH5OHKBXFB4CPCNPOCFXCZJVLFAJNL5KHM"
   }' | jq .
@@ -43,305 +40,141 @@ Expected response (`201 Created`):
 ```json
 {
   "id": "clxyz1234",
-  "name": "Alice Creator",
+  "name": "Alice",
   "email": "alice@example.com",
   "walletAddress": "GB6LGS25BCTVQSIXNCXDTRH5OHKBXFB4CPCNPOCFXCZJVLFAJNL5KHM",
-  "apiKey": "mv_abc123...",
+  "apiKey": "zp_abc123...",
   "createdAt": "2026-06-24T13:00:00.000Z"
 }
 ```
 
-> The `apiKey` is returned **once**. Store it — it cannot be retrieved again.
+> The `apiKey` is returned **once**. Store it — it cannot be retrieved again. Keys issued before the `zp_` prefix (starting with `mv_`) keep working.
 
-### Look up publisher by wallet address
-
-```bash
-curl -s $BASE/publishers/wallet/GB6LGS25BCTVQSIXNCXDTRH5OHKBXFB4CPCNPOCFXCZJVLFAJNL5KHM | jq .
-```
-
-### Get own profile (authenticated)
+### Get own profile
 
 ```bash
-curl -s $BASE/publishers/me \
-  -H "x-api-key: $API_KEY" | jq .
+curl -s $BASE/publishers/me -H "x-api-key: $API_KEY" | jq .
 ```
 
-### List own resources (authenticated)
+### Rotate the API key
 
 ```bash
-curl -s $BASE/publishers/me/resources \
-  -H "x-api-key: $API_KEY" | jq .
+curl -s -X POST $BASE/publishers/me/rotate-key -H "x-api-key: $API_KEY" | jq .
 ```
 
-### Get earnings and analytics (authenticated)
+The old key stops working immediately.
+
+### Analytics across all of your APIs
 
 ```bash
-curl -s $BASE/publishers/me/analytics \
-  -H "x-api-key: $API_KEY" | jq .summary
+curl -s $BASE/publishers/me/analytics -H "x-api-key: $API_KEY" | jq .
 ```
 
-### Creator leaderboard (public)
-
-```bash
-curl -s $BASE/publishers/leaderboard | jq '.[0:3]'
+```json
+{
+  "totals": {
+    "apis": 2,
+    "calls": 15,
+    "chargedCalls": 12,
+    "revenue": "1.2",
+    "currency": "USDC"
+  },
+  "apis": [
+    { "id": "api-1", "name": "Weather", "archivedAt": null, "calls": 10, "chargedCalls": 8, "revenue": "0.8" },
+    { "id": "api-2", "name": "Quotes", "archivedAt": null, "calls": 5, "chargedCalls": 4, "revenue": "0.4" }
+  ]
+}
 ```
+
+Archived APIs are included, since their calls were paid for. A provider with no APIs or calls gets zeros and an empty `apis` list.
 
 ---
 
-## Publishing Resources
+## Managing APIs
 
-### Publish a link resource
+### Register an API
 
 ```bash
-curl -s -X POST $BASE/resources \
-  -H "Content-Type: application/json" \
+curl -s -X POST $BASE/apis \
   -H "x-api-key: $API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{
-    "title": "My Research Dataset",
-    "description": "Curated dataset of 10k annotated examples.",
-    "price": "0.50",
-    "externalUrl": "https://your-host.example/dataset.zip"
+    "name": "Weather",
+    "description": "Current conditions by city",
+    "upstreamUrl": "https://weather.example.com/v1",
+    "price": "0.01",
+    "allowedMethods": ["GET"],
+    "upstreamHeader": { "name": "Authorization", "value": "Bearer <upstream-secret>" },
+    "tags": ["weather"]
   }' | jq .
 ```
 
-Expected response (`201 Created`):
+The upstream secret is encrypted at rest and never returned. The response includes the ownership check to complete before the API is listed.
 
-```json
-{
-  "id": "swcn98besxpp6t1u8e77fqz3",
-  "title": "My Research Dataset",
-  "description": "Curated dataset of 10k annotated examples.",
-  "price": "0.50",
-  "resourceType": "link",
-  "verificationStatus": "pending",
-  "listed": false,
-  "createdAt": "2026-06-24T13:05:00.000Z",
-  "accessUrl": "https://mindvault-hyr3.onrender.com/resources/swcn98besxpp6t1u8e77fqz3"
-}
-```
+### Verify ownership
 
-Verification runs asynchronously. Poll `/resources/:id/verification` to check status.
-
-### Publish a file resource
+Serve the token from the response at `/.well-known/zentrixpay.txt` on the upstream host, then:
 
 ```bash
-curl -s -X POST $BASE/resources \
+curl -s -X POST $BASE/apis/$API_ID/verify-ownership -H "x-api-key: $API_KEY" | jq .
+```
+
+### List your APIs
+
+```bash
+curl -s $BASE/publishers/me/apis -H "x-api-key: $API_KEY" | jq .
+```
+
+### Update an API
+
+```bash
+curl -s -X PATCH $BASE/apis/$API_ID \
   -H "x-api-key: $API_KEY" \
-  -F "title=My Trained Model" \
-  -F "description=Fine-tuned classifier, 94% accuracy" \
-  -F "price=1.00" \
-  -F "file=@/path/to/model.zip" | jq .
+  -H "Content-Type: application/json" \
+  -d '{ "price": "0.02" }' | jq .
 ```
 
-The file is stored in Supabase Storage. Maximum size is controlled by `MAX_FILE_SIZE_MB` (default 50 MB). Buyers receive a file download after payment.
-
----
-
-## Browsing the Catalog
+### Archive an API
 
 ```bash
-curl -s $BASE/resources | jq '[.[] | {id, title, price, accessUrl}]'
+curl -s -X DELETE $BASE/apis/$API_ID -H "x-api-key: $API_KEY" | jq .
 ```
 
-Expected response (array):
+Archived APIs are hidden everywhere but keep their call history.
 
-```json
-[
-  {
-    "id": "swcn98besxpp6t1u8e77fqz3",
-    "title": "My Research Dataset",
-    "price": "0.50",
-    "accessUrl": "https://mindvault-hyr3.onrender.com/resources/swcn98besxpp6t1u8e77fqz3"
-  }
-]
-```
-
-### Searching and filtering
-
-`GET /resources` accepts optional query parameters that narrow the catalog. They can be combined; supported HTTP filters are applied **server-side** before the response is returned. The MCP `zentrixpay_browse` and `zentrixpay_search` tools apply `tags` and `listed` client-side after receiving the server results. (The web app's `CatalogSearch` UI and the MCP `zentrixpay_search` tool send these same server-supported parameters.)
-
-| Parameter            | Type                                               | Effect                                                           |
-| -------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| `search`             | string                                             | Case-insensitive match against resource **title or description** |
-| `minPrice`           | number string (e.g. `0.50`)                        | Only resources priced ≥ `minPrice`                               |
-| `maxPrice`           | number string                                      | Only resources priced ≤ `maxPrice`                               |
-| `verificationStatus` | `verified` \| `pending` \| `rejected`              | Filter by verification status                                    |
-| `resourceType`       | `file` \| `link`                                   | Filter by resource type                                          |
-| `owner`              | string                                             | Case-insensitive match against publisher name or wallet          |
-| `sort`               | `newest` \| `price_asc` \| `price_desc` \| `title` | Sort order (default `newest`)                                    |
-| `limit`              | integer 1–100                                      | Page size (default 20)                                           |
-| `offset`             | integer ≥ 0                                        | Pagination offset                                                |
-
-The MCP `zentrixpay_browse` and `zentrixpay_search` tools forward these same parameters (MCP `query` maps to `search`). They also accept `tags` and `listed`, which are applied client-side for parity with catalog/meta and on-chain fields (the public HTTP schema rejects unknown query params).
-
-Price bounds are compared numerically, so equivalent decimal strings such as `"0.50"` and `"0.5"` match the same USDC prices. MCP tag matching is case-insensitive and requires every requested tag. Because the public catalog contains listed resources only, `listed=true` preserves the public result set and `listed=false` returns no public catalog matches.
+### Per-API stats
 
 ```bash
-# Verified links priced between 0.10 and 1.00 USDC that mention "dataset"
-curl -s "$BASE/resources?search=dataset&verificationStatus=verified&resourceType=link&minPrice=0.10&maxPrice=1.00" \
-  | jq '[.[] | {id, title, price, resourceType, verificationStatus}]'
-```
-
-Notes and current limitations:
-
-- `minPrice` and `maxPrice` must be non-negative numbers and `minPrice` cannot exceed `maxPrice` (otherwise the request is rejected with `400`).
-- Unknown query parameters are rejected (the schema is strict).
-- Filtering runs **in memory over the listed set** on each request — there is no full-text/database search index yet, so this is appropriate at the current catalog scale rather than a scalable search backend.
-- The web search box is labelled "Search by title…", but the server also matches the description.
-
----
-
-## Resource Preview
-
-### Get resource metadata (public, no payment)
-
-```bash
-curl -s $BASE/resources/$RESOURCE_ID/meta | jq .
-```
-
-Expected response:
-
-```json
-{
-  "id": "swcn98besxpp6t1u8e77fqz3",
-  "title": "My Research Dataset",
-  "description": "Curated dataset of 10k annotated examples.",
-  "price": "0.50",
-  "resourceType": "link",
-  "verificationStatus": "verified",
-  "listed": true,
-  "accessUrl": "https://mindvault-hyr3.onrender.com/resources/swcn98besxpp6t1u8e77fqz3"
-}
+curl -s $BASE/apis/$API_ID/stats -H "x-api-key: $API_KEY" | jq .
+curl -s "$BASE/apis/$API_ID/stats/time-series?days=30" -H "x-api-key: $API_KEY" | jq .
 ```
 
 ---
 
-## Checking Verification Status
+## Browsing the catalog
 
 ```bash
-curl -s $BASE/resources/$RESOURCE_ID/verification | jq .
+curl -s "$BASE/apis?q=weather&tag=weather&sort=popular&limit=20" | jq .
+curl -s $BASE/apis/$API_ID | jq .
+curl -s $BASE/apis/$API_ID/openapi.json | jq .
 ```
 
-Expected response:
-
-```json
-{
-  "id": "swcn98besxpp6t1u8e77fqz3",
-  "verificationStatus": "verified",
-  "verificationId": "ver_abc123",
-  "isOriginal": true,
-  "confidence": 0.95,
-  "flags": []
-}
-```
-
-`verificationStatus` is one of `pending`, `verified`, or `rejected`. A rejected resource is not listed in the catalog.
+`sort` is one of `newest` (default), `price_asc`, `price_desc`, `popular`.
 
 ---
 
-## Accessing a Paywalled Resource
+## Calling a paid API
 
-### Inspect the 402 response
-
-```bash
-curl -i $BASE/resources/$RESOURCE_ID
-```
-
-Expected response:
-
-```
-HTTP/1.1 402 Payment Required
-PAYMENT-REQUIRED: eyJ4NDAyVmVyc2lvbiI6IjEiLCJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJzdGVsbGFyOnRlc3RuZXQiLCJwYXlUbyI6IkdC...
-Content-Type: application/json
-
-{"error":"Payment required","amount":"0.50","currency":"USDC","network":"stellar:testnet"}
-```
-
-The `PAYMENT-REQUIRED` header is a base64-encoded JSON object containing:
-
-```json
-{
-  "x402Version": "1",
-  "scheme": "exact",
-  "network": "stellar:testnet",
-  "payTo": "GB6LGS25BCTVQSIXNCXDTRH5OHKBXFB4CPCNPOCFXCZJVLFAJNL5KHM",
-  "asset": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-  "price": "5000000"
-}
-```
-
-### Decode the payment details
+Every call goes through the proxy at `/api/:id/<path>`:
 
 ```bash
-curl -si $BASE/resources/$RESOURCE_ID \
-  | grep PAYMENT-REQUIRED \
-  | awk '{print $2}' \
-  | base64 -d | jq .
+curl -i $BASE/api/$API_ID/current?city=Lagos
 ```
 
-### Pay and access (x402 client required)
+Without payment the gateway answers `402 Payment Required` with the price and payee in the `PAYMENT-REQUIRED` header. Use an x402 client to pay and retry automatically — see [Calling ZentrixPay APIs from JavaScript](call-from-javascript.md).
 
-Human browsers with Freighter/xBull handle payment automatically via the web app. For programmatic access, use an x402-aware client:
-
-```ts
-import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
-import { createEd25519Signer } from "@x402/stellar";
-import { ExactStellarScheme } from "@x402/stellar/exact/client";
-
-const signer = createEd25519Signer(SECRET_KEY, "stellar:testnet");
-const scheme = new ExactStellarScheme(signer);
-const client = new x402Client().register("stellar:testnet", scheme);
-const paidFetch = wrapFetchWithPayment(fetch, client);
-
-const res = await paidFetch(
-  "https://mindvault-hyr3.onrender.com/resources/swcn98besxpp6t1u8e77fqz3",
-);
-const data = await res.json();
-// { url: "https://...", receipt: { paymentId, amount, currency, paidTo, paidAt } }
-```
-
----
-
-## Agent Status
+### Receipts for a payer
 
 ```bash
-curl -s $BASE/agent/status | jq '{agent: .agent, stats: .stats}'
-```
-
-Expected response:
-
-```json
-{
-  "agent": {
-    "name": "ZentrixPay Verification Agent",
-    "walletAddress": "GB6LGS25BCTVQSIXNCXDTRH5OHKBXFB4CPCNPOCFXCZJVLFAJNL5KHM",
-    "network": "stellar:testnet",
-    "endpoint": "https://mindvault-hyr3.onrender.com/verify-content",
-    "pricePerVerification": "0.10",
-    "currency": "USDC",
-    "status": "active"
-  },
-  "stats": {
-    "totalVerifications": 7,
-    "verified": 2,
-    "rejected": 5,
-    "totalEarned": "0.7000",
-    "avgConfidence": "0.82"
-  }
-}
-```
-
----
-
-## Delist a Resource
-
-```bash
-curl -s -X DELETE $BASE/resources/$RESOURCE_ID \
-  -H "x-api-key: $API_KEY" | jq .
-```
-
-Expected response:
-
-```json
-{ "message": "Resource delisted", "id": "swcn98besxpp6t1u8e77fqz3" }
+curl -s "$BASE/payers/<G...address>/calls?limit=20" | jq .
 ```

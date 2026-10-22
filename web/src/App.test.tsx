@@ -107,7 +107,7 @@ describe("App", () => {
       name: "Ada",
       email: "ada@example.com",
       walletAddress: "GADA",
-      apiKey: "mv_secret",
+      apiKey: "zp_secret",
     });
     renderApp();
     await userEvent.click(screen.getByRole("button", { name: "Sell your API" }));
@@ -115,10 +115,10 @@ describe("App", () => {
     await userEvent.type(screen.getByLabelText("Email"), "ada@example.com");
     await userEvent.type(screen.getByLabelText("Payout wallet"), "GADA");
     await userEvent.click(screen.getByRole("button", { name: "Register" }));
-    expect(await screen.findByText("mv_secret")).toBeInTheDocument();
+    expect(await screen.findByText("zp_secret")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /I saved it/ }));
     expect(await screen.findByText("Ownership not verified")).toBeInTheDocument();
     expect(screen.getByText("zentrixpay-verification=abc")).toBeInTheDocument();
-    expect(fetchMyApis).toHaveBeenCalledWith("mv_secret");
+    expect(fetchMyApis).toHaveBeenCalledWith("zp_secret");
   });
 });

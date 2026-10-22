@@ -302,10 +302,10 @@ describe("toolErrorPayload", () => {
     const payload = toolErrorPayload({
       error: new Error("x"),
       summary: "Failed",
-      correlationId: "mv-abc-0001",
+      correlationId: "zp-abc-0001",
     });
 
-    expect(payload.correlationId).toBe("mv-abc-0001");
+    expect(payload.correlationId).toBe("zp-abc-0001");
   });
 
   it("omits the correlation id when there is none", () => {

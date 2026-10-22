@@ -29,7 +29,7 @@ From the repo root:
 pnpm contract:bindings
 ```
 
-This runs [`scripts/generate-bindings.mjs`](../scripts/generate-bindings.mjs),
+This runs [`scripts/generate-bindings.mjs`](../../scripts/generate-bindings.mjs),
 which:
 
 1. Calls `stellar contract bindings typescript` to produce raw bindings in a
@@ -175,7 +175,7 @@ agents and operators can validate compatibility without leaving the session.
 
 ## Further reading
 
-- [`packages/registry-client/README.md`](../packages/registry-client/README.md) — package overview and usage examples
-- [`contract/README.md`](../contract/README.md) — contract interface, error codes, and deployment
-- [`docs/architecture.md`](architecture.md) — how the registry client fits into the system
-- [`docs/deployment-runbook.md`](deployment-runbook.md) — Step 1.6 covers regeneration during deployment
+- [`packages/registry-client/README.md`](../../packages/registry-client/README.md) — package overview and usage examples
+- [`contract/README.md`](../README.md) — contract interface, error codes, and deployment
+- [`docs/architecture.md`](../../docs/architecture.md) — how the registry client fits into the system
+- [`docs/deployment-runbook.md`](../../docs/deployment-runbook.md) — Step 1.6 covers regeneration during deployment

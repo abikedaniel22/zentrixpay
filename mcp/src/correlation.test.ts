@@ -41,7 +41,7 @@ function captureAuditEntries(): { entries: any[] } {
 
 describe("newCorrelationId", () => {
   it("has the documented shape", () => {
-    expect(newCorrelationId()).toMatch(/^mv-[0-9a-z]+-[0-9a-z]{4}$/);
+    expect(newCorrelationId()).toMatch(/^zp-[0-9a-z]+-[0-9a-z]{4}$/);
   });
 
   it("is deterministic given a clock and a source of randomness", () => {
@@ -165,7 +165,7 @@ describe("isCorrelationId", () => {
     expect(isCorrelationId(newCorrelationId())).toBe(true);
   });
 
-  it.each(["", "mv-", "mv-abc", "nope", "mv-abc-toolong", null, undefined, 42])(
+  it.each(["", "zp-", "zp-abc", "nope", "zp-abc-toolong", "mv-abc-0001", null, undefined, 42])(
     "rejects %s",
     (value) => {
       expect(isCorrelationId(value)).toBe(false);
@@ -180,21 +180,21 @@ describe("ambient context", () => {
   });
 
   it("is readable inside the call", () => {
-    runWithCorrelationId("mv-test-0001", () => {
-      expect(currentCorrelationId()).toBe("mv-test-0001");
+    runWithCorrelationId("zp-test-0001", () => {
+      expect(currentCorrelationId()).toBe("zp-test-0001");
     });
   });
 
   it("does not leak after the call returns", () => {
-    runWithCorrelationId("mv-test-0001", () => undefined);
+    runWithCorrelationId("zp-test-0001", () => undefined);
 
     expect(currentCorrelationId()).toBeUndefined();
   });
 
   it("survives an await boundary", async () => {
-    await runWithCorrelationId("mv-test-0002", async () => {
+    await runWithCorrelationId("zp-test-0002", async () => {
       await Promise.resolve();
-      expect(currentCorrelationId()).toBe("mv-test-0002");
+      expect(currentCorrelationId()).toBe("zp-test-0002");
     });
   });
 
@@ -204,8 +204,8 @@ describe("ambient context", () => {
       return currentCorrelationId();
     }
 
-    await runWithCorrelationId("mv-test-0003", async () => {
-      expect(await deep()).toBe("mv-test-0003");
+    await runWithCorrelationId("zp-test-0003", async () => {
+      expect(await deep()).toBe("zp-test-0003");
     });
   });
 
@@ -221,9 +221,9 @@ describe("ambient context", () => {
 
     // Interleaved on purpose: the slower call finishes second and must still
     // see its own id.
-    await Promise.all([call("mv-a-0001", 20), call("mv-b-0002", 1)]);
+    await Promise.all([call("zp-a-0001", 20), call("zp-b-0002", 1)]);
 
-    expect(seen.sort()).toEqual(["mv-a-0001", "mv-b-0002"]);
+    expect(seen.sort()).toEqual(["zp-a-0001", "zp-b-0002"]);
   });
 
   it("nests, with the inner id winning", () => {
@@ -237,7 +237,7 @@ describe("ambient context", () => {
 
   it("restores the context when the body throws", () => {
     expect(() =>
-      runWithCorrelationId("mv-test-0004", () => {
+      runWithCorrelationId("zp-test-0004", () => {
         throw new Error("boom");
       }),
     ).toThrow("boom");
@@ -259,7 +259,7 @@ describe("withNewCorrelationId", () => {
   });
 
   it("accepts an explicit id, for deterministic tests", () => {
-    withNewCorrelationId((id) => expect(id).toBe("mv-fixed-0001"), "mv-fixed-0001");
+    withNewCorrelationId((id) => expect(id).toBe("zp-fixed-0001"), "zp-fixed-0001");
   });
 
   it("gives each call a distinct id", () => {
@@ -272,13 +272,13 @@ describe("withNewCorrelationId", () => {
 
 describe("attaching to a result", () => {
   it("puts the id in _meta", () => {
-    const result = attachCorrelationId({ content: [] }, "mv-test-0005");
+    const result = attachCorrelationId({ content: [] }, "zp-test-0005");
 
-    expect(result._meta?.[CORRELATION_META_KEY]).toBe("mv-test-0005");
+    expect(result._meta?.[CORRELATION_META_KEY]).toBe("zp-test-0005");
   });
 
   it("leaves the agent-facing content untouched", () => {
-    const result = attachCorrelationId({ content: [{ type: "text", text: "hello" }] }, "mv-x-0001");
+    const result = attachCorrelationId({ content: [{ type: "text", text: "hello" }] }, "zp-x-0001");
 
     // An opaque token in front of the model on every call would be a cost with
     // no benefit; _meta is what MCP reserves for this.
@@ -286,21 +286,21 @@ describe("attaching to a result", () => {
   });
 
   it("preserves existing _meta", () => {
-    const result = attachCorrelationId({ _meta: { other: 1 } }, "mv-test-0006");
+    const result = attachCorrelationId({ _meta: { other: 1 } }, "zp-test-0006");
 
-    expect(result._meta).toEqual({ other: 1, [CORRELATION_META_KEY]: "mv-test-0006" });
+    expect(result._meta).toEqual({ other: 1, [CORRELATION_META_KEY]: "zp-test-0006" });
   });
 
   it("does not mutate the input", () => {
     const original = { content: [] };
-    attachCorrelationId(original, "mv-test-0007");
+    attachCorrelationId(original, "zp-test-0007");
 
     expect(original).not.toHaveProperty("_meta");
   });
 
   it("uses the ambient id when none is passed", () => {
-    runWithCorrelationId("mv-ambient-0001", () => {
-      expect(correlationIdOf(attachCorrelationId({}))).toBe("mv-ambient-0001");
+    runWithCorrelationId("zp-ambient-0001", () => {
+      expect(correlationIdOf(attachCorrelationId({}))).toBe("zp-ambient-0001");
     });
   });
 
@@ -311,7 +311,7 @@ describe("attaching to a result", () => {
   });
 
   it("round-trips through correlationIdOf", () => {
-    expect(correlationIdOf(attachCorrelationId({}, "mv-test-0008"))).toBe("mv-test-0008");
+    expect(correlationIdOf(attachCorrelationId({}, "zp-test-0008"))).toBe("zp-test-0008");
   });
 
   it("reads nothing off a result without one", () => {
@@ -323,7 +323,7 @@ describe("attaching to a result", () => {
 
 describe("correlationSuffix", () => {
   it("renders a quotable suffix", () => {
-    expect(correlationSuffix("mv-test-0009")).toBe(" [correlation: mv-test-0009]");
+    expect(correlationSuffix("zp-test-0009")).toBe(" [correlation: zp-test-0009]");
   });
 
   it("is empty with no id", () => {
@@ -331,8 +331,8 @@ describe("correlationSuffix", () => {
   });
 
   it("uses the ambient id", () => {
-    runWithCorrelationId("mv-amb-0002", () => {
-      expect(correlationSuffix()).toContain("mv-amb-0002");
+    runWithCorrelationId("zp-amb-0002", () => {
+      expect(correlationSuffix()).toContain("zp-amb-0002");
     });
   });
 });
@@ -342,16 +342,16 @@ describe("audit log integration", () => {
     const captured = captureAuditEntries();
     setAuditLogEnabled(true);
 
-    runWithCorrelationId("mv-audit-0001", () => logToolStart("zentrixpay_browse"));
+    runWithCorrelationId("zp-audit-0001", () => logToolStart("zentrixpay_browse"));
 
-    expect(captured.entries[0].correlationId).toBe("mv-audit-0001");
+    expect(captured.entries[0].correlationId).toBe("zp-audit-0001");
   });
 
   it("stamps network requests with the same id as the tool call", () => {
     const captured = captureAuditEntries();
     setAuditLogEnabled(true);
 
-    runWithCorrelationId("mv-audit-0002", () => {
+    runWithCorrelationId("zp-audit-0002", () => {
       logToolStart("zentrixpay_buy");
       logNetworkRequest("GET", "https://example/resource", "api", 200, 12);
       logToolSuccess("zentrixpay_buy", 34);
@@ -359,7 +359,7 @@ describe("audit log integration", () => {
 
     // The whole point: one grep finds every line belonging to the call.
     const ids = captured.entries.map((entry) => entry.correlationId);
-    expect(ids).toEqual(["mv-audit-0002", "mv-audit-0002", "mv-audit-0002"]);
+    expect(ids).toEqual(["zp-audit-0002", "zp-audit-0002", "zp-audit-0002"]);
   });
 
   it("omits the field outside a tool call", () => {
@@ -384,12 +384,12 @@ describe("audit log integration", () => {
     }
 
     await Promise.all([
-      call("mv-p-0001", "zentrixpay_browse", 20),
-      call("mv-q-0002", "zentrixpay_search", 1),
+      call("zp-p-0001", "zentrixpay_browse", 20),
+      call("zp-q-0002", "zentrixpay_search", 1),
     ]);
 
     for (const entry of captured.entries) {
-      const expected = entry.toolName === "zentrixpay_browse" ? "mv-p-0001" : "mv-q-0002";
+      const expected = entry.toolName === "zentrixpay_browse" ? "zp-p-0001" : "zp-q-0002";
       expect(entry.correlationId).toBe(expected);
     }
   });
@@ -398,7 +398,7 @@ describe("audit log integration", () => {
     const captured = captureAuditEntries();
     setAuditLogEnabled(true);
 
-    runWithCorrelationId("mv-audit-0003", () =>
+    runWithCorrelationId("zp-audit-0003", () =>
       logToolSuccess("zentrixpay_browse", 7, { network: "testnet" }),
     );
 

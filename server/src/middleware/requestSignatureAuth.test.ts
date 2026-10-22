@@ -32,7 +32,7 @@ function mockResponse() {
 }
 
 describe("requestSignatureAuth", () => {
-  const secret = "mv_test_secret";
+  const secret = "zp_test_secret";
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const path = "/resources/res-1/register";
   const rawBody = JSON.stringify({ signedXdr: "AAAA" });

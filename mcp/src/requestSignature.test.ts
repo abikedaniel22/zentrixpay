@@ -19,7 +19,7 @@ import {
   signPublisherRequestHeaders,
 } from "./requestSignature.js";
 
-const API_KEY = "mv_test_secret";
+const API_KEY = "zp_test_secret";
 const NOW_MS = 1_700_000_000_123; // a fixed epoch, in ms
 const NOW_SECONDS = String(Math.floor(NOW_MS / 1000)); // "1700000000"
 

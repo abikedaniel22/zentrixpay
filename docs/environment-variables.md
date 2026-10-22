@@ -8,72 +8,31 @@ Copy `server/.env.example` to `server/.env` and fill in the values before runnin
 
 ## Server
 
-| Variable   | Required | Default                 | Description                                                                                             |
-| ---------- | -------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `PORT`     | no       | `4021`                  | TCP port the Express server listens on.                                                                 |
-| `BASE_URL` | no       | `http://localhost:4021` | Public base URL. Used to build `accessUrl` in API responses. Set to your deployed origin in production. |
+The full, per-variable table for the gateway server — including the proxy,
+health-check and webhook settings — is in [server-env.md](server-env.md). The
+variables most deployments touch:
+
+| Variable              | Required | Default                            | Description                                                                                         |
+| --------------------- | -------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `PORT`                | no       | `4021`                             | TCP port the Express server listens on.                                                             |
+| `BASE_URL`            | no       | `http://localhost:4021`            | Public base URL. Used to build each API's `proxyUrl`. Set to your deployed origin in production.     |
+| `DATABASE_URL`        | **yes**  | —                                  | Postgres connection string. **Never commit this value.**                                            |
+| `STELLAR_NETWORK`     | no       | `testnet`                          | `testnet` or `mainnet`; fills the network-specific defaults below.                                  |
+| `NETWORK`             | no       | from `STELLAR_NETWORK`             | x402 network identifier (`stellar:testnet` or `stellar:pubnet`).                                    |
+| `FACILITATOR_URL`     | no       | `https://www.x402.org/facilitator` | x402 facilitator endpoint used to verify and settle payments.                                       |
+| `UPSTREAM_SECRET_KEY` | no       | —                                  | 64 hex chars. Encrypts providers' upstream secrets at rest. **Never commit this value.**             |
+
+Callers pay each provider's own wallet directly: the payee of a call is the
+`walletAddress` stored on the API, not a platform wallet.
+
+Some variables (`AGENT_SECRET_KEY`, `VAULT_REGISTRY_CONTRACT_ID`,
+`REGISTRY_SECRET_KEY`, `OPENROUTER_API_KEY`, the Supabase storage settings, …)
+belong to the old resource vault. See
+[server-env.md — Legacy vault variables](server-env.md#legacy-vault-variables).
 
 ---
 
-## Stellar / x402
-
-| Variable           | Required | Default                            | Description                                                                                                                                             |
-| ------------------ | -------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NETWORK`          | no       | `stellar:testnet`                  | x402 network identifier. Use `stellar:testnet` for testnet, `stellar:mainnet` for mainnet.                                                              |
-| `FACILITATOR_URL`  | no       | `https://www.x402.org/facilitator` | x402 facilitator endpoint used to verify and settle payments.                                                                                           |
-| `PAY_TO`           | **yes**  | —                                  | Platform Stellar wallet address (`G...`). Receives verification fees ($0.10 USDC per verification).                                                     |
-| `AGENT_SECRET_KEY` | **yes**  | —                                  | Platform agent secret key (`S...`). Signs Soroban auth entries when the server pays for content verification autonomously. **Never commit this value.** |
-
-Example (testnet):
-
-```
-NETWORK=stellar:testnet
-FACILITATOR_URL=https://www.x402.org/facilitator
-PAY_TO=GB6LGS25BCTVQSIXNCXDTRH5OHKBXFB4CPCNPOCFXCZJVLFAJNL5KHM
-AGENT_SECRET_KEY=<your-stellar-secret-key>
-```
-
----
-
-## Soroban / Vault Registry
-
-| Variable                     | Required | Default                               | Description                                                                                                                                                                                                         |
-| ---------------------------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SOROBAN_RPC_URL`            | no       | `https://soroban-testnet.stellar.org` | Soroban RPC endpoint. Override for mainnet (`https://soroban-mainnet.stellar.org`) or a self-hosted node.                                                                                                           |
-| `VAULT_REGISTRY_CONTRACT_ID` | **yes**  | —                                     | Contract ID of the deployed `vault-registry` Soroban contract. The testnet canonical deployment is `CDQKUIADLO5S5WEHEUTTXX2M45WAHVRU2PBEBD6ZGDKMOP5A72FJ3OD4`. See `contract/README.md` for how to deploy your own. |
-| `REGISTRY_CONTRACT_ID`       | **yes**  | —                                     | Alias for the vault registry contract ID (same contract, read by the registry client package).                                                                                                                      |
-| `REGISTRY_SECRET_KEY`        | **yes**  | —                                     | Secret key of the registry deployer / owner account. Required to write entries to the on-chain registry. **Never commit this value.**                                                                               |
-
-> `SOROBAN_RPC_URL`, `VAULT_REGISTRY_CONTRACT_ID`, and `REGISTRY_CONTRACT_ID` refer to the same contract and RPC. Both variable names appear in `config.ts` for backward compatibility; keep them in sync.
-
----
-
-## OpenRouter (AI Verification)
-
-| Variable             | Required | Default                     | Description                                                                                                                   |
-| -------------------- | -------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY` | **yes**  | —                           | API key for [OpenRouter](https://openrouter.ai). Used by the verification agent to call the LLM. **Never commit this value.** |
-| `OPENROUTER_MODEL`   | no       | `anthropic/claude-sonnet-4` | Model identifier passed to OpenRouter. Any model available on OpenRouter works.                                               |
-
----
-
-## Supabase
-
-| Variable                  | Required | Default     | Description                                                                                                                                                |
-| ------------------------- | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`            | **yes**  | —           | Postgres connection string from Supabase (pooler recommended). Format: `postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres` |
-| `SUPABASE_URL`            | **yes**  | —           | Supabase project URL. Format: `https://<project-ref>.supabase.co`                                                                                          |
-| `SUPABASE_SERVICE_KEY`    | **yes**  | —           | Supabase service-role JWT. Used by the storage client to upload/download files. **Never commit this value.**                                               |
-| `SUPABASE_STORAGE_BUCKET` | no       | `resources` | Storage bucket name for uploaded file resources. Create the bucket in the Supabase dashboard before use.                                                   |
-
----
-
-## Limits
-
-| Variable             | Required | Default | Description                                                                                     |
-| -------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------- |
-| `MAX_FILE_SIZE_MB`   | no       | `50`    | Maximum size for file upload resources, in megabytes. Enforced by the multer middleware.        |
-| `VERIFICATION_PRICE` | no       | `0.10`  | Price in USDC charged per content verification (the x402-paywalled `/verify-content` endpoint). |
+## MCP limits
 
 ### MCP automatic payment ceiling
 
@@ -151,11 +110,10 @@ Fix each item in `server/.env` and restart.
 
 The following values **must never be committed** to version control:
 
-- `AGENT_SECRET_KEY` — spending capability over the platform wallet
-- `REGISTRY_SECRET_KEY` — write access to the on-chain registry
-- `OPENROUTER_API_KEY` — billed API access
-- `SUPABASE_SERVICE_KEY` — full database and storage access
 - `DATABASE_URL` — direct Postgres access including password
+- `UPSTREAM_SECRET_KEY` — decrypts every provider's upstream credentials
+- `METRICS_TOKEN` — access to the `/metrics` endpoint
+- any legacy vault secrets still set (`AGENT_SECRET_KEY`, `REGISTRY_SECRET_KEY`, `OPENROUTER_API_KEY`, `SUPABASE_SERVICE_KEY`)
 
 All other variables are either public addresses or non-sensitive configuration. `server/.env` is in `.gitignore`; verify before committing.
 
@@ -181,7 +139,24 @@ All other variables are either public addresses or non-sensitive configuration. 
 
 Timeouts are enforced with `AbortController`. Retries apply to idempotent calls only — catalog `GET`s, Horizon reads, and Soroban `getTransaction` — and never to x402 payments, which could settle twice. See [`mcp-timeouts-retries.md`](./mcp-timeouts-retries.md) for budgets, policy, and tuning guidance.
 
-On mainnet, MCP tools that mutate state or spend funds (`zentrixpay_buy`, `zentrixpay_publish`, `zentrixpay_register`, `zentrixpay_register_onchain`, `zentrixpay_setup_wallet`, `zentrixpay_reset`, `zentrixpay_update_metadata`, `zentrixpay_set_price`, `zentrixpay_transfer_ownership`, `zentrixpay_set_listed`) require either `confirmMainnet: true` on the tool call or `ZENTRIXPAY_ALLOW_MAINNET=1`. Read-only tools are unrestricted. See [`mainnet-deployment-checklist.md`](./mainnet-deployment-checklist.md#mcp-mainnet-guardrails).
+### MCP mainnet guardrails
+
+When the MCP server runs with `STELLAR_NETWORK=mainnet` (or x402 `stellar:pubnet`), tools that **mutate state or spend funds** require an explicit confirmation. Read-only tools stay unrestricted.
+
+**Gated tools:** `zentrixpay_setup_wallet`, `zentrixpay_register`, `zentrixpay_publish`, `zentrixpay_buy`, `zentrixpay_register_onchain`, `zentrixpay_reset`, `zentrixpay_update_metadata`, `zentrixpay_set_price`, `zentrixpay_transfer_ownership`, `zentrixpay_set_listed`.
+
+**Confirm either:**
+
+1. Pass `confirmMainnet: true` on the tool call, or
+2. Set `ZENTRIXPAY_ALLOW_MAINNET=1` on the MCP process (unlocks all gated tools for that process).
+
+**Safer defaults for `ZENTRIXPAY_ALLOW_MAINNET` (#606):** the env override is parsed fail-safe. Only `1` / `true` / `yes` widen the policy to process-wide `allow-all`; everything else — unset, empty, `0` / `false` / `no` / `off`, and any unrecognized value — keeps per-call confirmation. A set value that unlocks nothing (an unexpanded `$ZENTRIXPAY_ALLOW_MAINNET` template placeholder, `on`, `enabled`, a typo) is reported as a startup **warning** so the deployment mistake surfaces immediately; explicit denials stay quiet because they state intent. A typo in a safety setting fails towards *more* confirmation, never less.
+
+Without confirmation the tool returns a deterministic, agent-safe error (no secrets). Diagnostics also appear in `zentrixpay_registry_info` (`network`, `x402Network`, `mainnetDiagnostics`).
+
+```json
+{ "resourceId": "res-001", "confirmMainnet": true }
+```
 
 ### MCP read-only mode
 
@@ -223,10 +198,8 @@ An unrecognized value (`true`, `1`, `yes`) raises an error on the first paid cal
 
 When deploying to mainnet, change:
 
-- `NETWORK` → `stellar:mainnet`
-- `SOROBAN_RPC_URL` → `https://soroban-mainnet.stellar.org`
-- `VAULT_REGISTRY_CONTRACT_ID` / `REGISTRY_CONTRACT_ID` → your mainnet contract ID (requires redeployment)
-- `PAY_TO` → your mainnet wallet address
+- `STELLAR_NETWORK` → `mainnet` (or set `NETWORK` → `stellar:pubnet` and the related variables explicitly)
 - `BASE_URL` → your production domain
+- `ALLOWED_ORIGINS` → your production web origin(s)
 
-See [`docs/mainnet-deployment-checklist.md`](./mainnet-deployment-checklist.md) for the full migration guide.
+See [server-env.md — Mainnet values](server-env.md#mainnet-values) for the full list.

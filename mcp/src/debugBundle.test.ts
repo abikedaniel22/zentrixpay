@@ -37,7 +37,7 @@ function input(overrides: Partial<DebugBundleInput> = {}): DebugBundleInput {
     STELLAR_NETWORK: "testnet",
     VAULT_REGISTRY_CONTRACT_ID: CONTRACT,
     ZENTRIXPAY_AGENT_SECRET: SECRET,
-    ZENTRIXPAY_API_KEY: "mv_live_0123456789abcdef0123456789abcdef",
+    ZENTRIXPAY_API_KEY: "zp_live_0123456789abcdef0123456789abcdef",
     ZENTRIXPAY_AUDIT_LOG: "1",
     AWS_SECRET_ACCESS_KEY: "unrelated-and-must-not-appear",
     PATH: "/usr/bin",
@@ -56,7 +56,7 @@ function input(overrides: Partial<DebugBundleInput> = {}): DebugBundleInput {
     installChecks: [{ name: "node_version", ok: true, detail: "Node.js v20.11.0 ✓" }],
     installOk: true,
     profiles: {
-      default: { wallet: { publicKey: PUBLIC, secretKey: SECRET }, apiKey: "mv_key_abc" },
+      default: { wallet: { publicKey: PUBLIC, secretKey: SECRET }, apiKey: "zp_key_abc" },
       empty: {},
     },
     activeProfile: "default",
@@ -124,7 +124,7 @@ describe("summarizeProfiles", () => {
       { name: "empty", active: false, hasWallet: false, publicKey: null, hasApiKey: false },
     ]);
     expect(JSON.stringify(entries)).not.toContain(SECRET);
-    expect(JSON.stringify(entries)).not.toContain("mv_key_abc");
+    expect(JSON.stringify(entries)).not.toContain("zp_key_abc");
   });
 });
 
@@ -185,8 +185,8 @@ describe("buildDebugBundle", () => {
     const text = JSON.stringify(bundle);
 
     expect(text).not.toContain(SECRET);
-    expect(text).not.toContain("mv_key_abc");
-    expect(text).not.toContain("mv_live_");
+    expect(text).not.toContain("zp_key_abc");
+    expect(text).not.toContain("zp_live_");
     expect(text).not.toContain("unrelated-and-must-not-appear");
     expect(text).toContain(PUBLIC);
     expect(text).toContain(CONTRACT);

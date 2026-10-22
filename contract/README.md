@@ -233,7 +233,7 @@ The contract does **not** collect fees itself — it stores the agreed split so
 off-chain settlement (x402 facilitator, future settlement contracts) can read
 and apply it.
 
-See [`docs/adr-fee-config.md`](../docs/adr-fee-config.md) for the full design rationale.
+See [`contract/docs/adr-fee-config.md`](docs/adr-fee-config.md) for the full design rationale.
 
 ### Methods
 
@@ -1174,7 +1174,7 @@ class the registry writes and fails when one grows past its budget:
 cd contracts/vault-registry && make footprint
 ```
 
-See [`docs/contract-storage-footprint.md`](../docs/contract-storage-footprint.md)
+See [`contract/docs/contract-storage-footprint.md`](docs/contract-storage-footprint.md)
 for the current table, per-operation aggregates, and the procedure for raising
 a budget deliberately.
 
@@ -1245,7 +1245,7 @@ cd contract && stellar contract build --manifest-path Cargo.toml
 
 > [!IMPORTANT]
 > Before deploying a new WASM to any network, complete the full
-> **[Contract Upgrade Checklist](../docs/contract-upgrade-checklist.md)** — it
+> **[Contract Upgrade Checklist](docs/contract-upgrade-checklist.md)** — it
 > covers build verification, WASM size budget, network identity checks, binding
 > regeneration, admin role bootstrap, and post-deploy smoke tests.
 > Run `make preflight` from `contract/contracts/vault-registry/` to execute
@@ -1289,7 +1289,7 @@ record/read resources on this contract.
 
 ### Emergency pause
 
-See [contract-registry-pause-decision.md](../docs/contract-registry-pause-decision.md)
+See [contract-registry-pause-decision.md](docs/contract-registry-pause-decision.md)
 for the original architecture spike. The pause feature is now implemented — see the
 **Emergency pause** section above for the full API.
 
@@ -1304,5 +1304,5 @@ for the original architecture spike. The pause feature is now implemented — se
 
 - Optional escrow/refund extension (see the root README's "Not Yet Built").
 - Tag-based discovery (`list_by_tag`) — see
-  [`docs/tag-index-repair-design.md`](../docs/tag-index-repair-design.md) for
+  [`contract/docs/tag-index-repair-design.md`](docs/tag-index-repair-design.md) for
   the repair contract an on-chain tag index must satisfy before it ships.

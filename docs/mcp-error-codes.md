@@ -30,7 +30,7 @@ Failures return `structuredContent` alongside the human-readable text:
   "summary": "Purchase failed: price 25 USDC exceeds the auto-pay ceiling",
   "detail": null,
   "action": "No funds moved. Pass maxAutoPayUsdc at least as large as the price, or raise ZENTRIXPAY_MAX_AUTO_PAY_USDC.",
-  "correlationId": "mv-1a2b3c4d-e5f6"
+  "correlationId": "zp-1a2b3c4d-e5f6"
 }
 ```
 
