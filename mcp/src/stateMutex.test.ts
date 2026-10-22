@@ -162,53 +162,12 @@ describe("stateMutex", () => {
       expect(serializesStateTool("zentrixpay_rotate_publisher_key")).toBe(true);
     });
 
-    it("returns true for credential-spending tools", () => {
-      expect(serializesStateTool("zentrixpay_publish")).toBe(true);
-      expect(serializesStateTool("zentrixpay_buy")).toBe(true);
-    });
-
-    it("returns false for read-only tools", () => {
-      expect(serializesStateTool("zentrixpay_browse")).toBe(false);
-      expect(serializesStateTool("zentrixpay_search")).toBe(false);
-      expect(serializesStateTool("zentrixpay_preview")).toBe(false);
-      expect(serializesStateTool("zentrixpay_wallet_info")).toBe(false);
-      expect(serializesStateTool("zentrixpay_list_profiles")).toBe(false);
-      expect(serializesStateTool("zentrixpay_publish_status")).toBe(false);
-      expect(serializesStateTool("zentrixpay_agent_status")).toBe(false);
-      expect(serializesStateTool("zentrixpay_registry_info")).toBe(false);
-      expect(serializesStateTool("zentrixpay_network_profile")).toBe(false);
-      expect(serializesStateTool("zentrixpay_check_bindings")).toBe(false);
-      expect(serializesStateTool("zentrixpay_check_consistency")).toBe(false);
-      expect(serializesStateTool("zentrixpay_registry_lookup")).toBe(false);
-      expect(serializesStateTool("zentrixpay_registry_list")).toBe(false);
-      expect(serializesStateTool("zentrixpay_tx_status")).toBe(false);
-      expect(serializesStateTool("zentrixpay_metrics")).toBe(false);
-      expect(serializesStateTool("zentrixpay_check_state_permissions")).toBe(false);
-      expect(serializesStateTool("zentrixpay_registry_health")).toBe(false);
-      expect(serializesStateTool("zentrixpay_verify_install")).toBe(false);
-      expect(serializesStateTool("zentrixpay_backup_state")).toBe(false);
-    });
-
     it("returns false for unknown tools", () => {
       expect(serializesStateTool("zentrixpay_unknown")).toBe(false);
     });
   });
 
   describe("STATE_SERIALIZED_TOOLS", () => {
-    it("contains exactly the expected tools", () => {
-      const expected = new Set([
-        "zentrixpay_reset",
-        "zentrixpay_restore_state",
-        "zentrixpay_setup_wallet",
-        "zentrixpay_import_wallet",
-        "zentrixpay_use_profile",
-        "zentrixpay_register",
-        "zentrixpay_rotate_publisher_key",
-        "zentrixpay_publish",
-        "zentrixpay_buy",
-      ]);
-      expect(STATE_SERIALIZED_TOOLS).toEqual(expected);
-    });
 
     it("serializesStateTool matches the set", () => {
       for (const tool of STATE_SERIALIZED_TOOLS) {

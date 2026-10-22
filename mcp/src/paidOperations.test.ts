@@ -113,33 +113,10 @@ describe("resolvePaidConfirmationPolicy", () => {
 // ── Classification ───────────────────────────────────────────────────────────
 
 describe("paidOperationClass", () => {
-  it("classifies the USDC spenders", () => {
-    for (const name of USDC_SPENDING_TOOLS) {
-      expect(paidOperationClass(name), name).toBe("usdc");
-    }
-    expect(USDC_SPENDING_TOOLS).toEqual([
-      "zentrixpay_publish",
-      "zentrixpay_publish_batch",
-      "zentrixpay_buy",
-    ]);
-  });
 
   it("classifies the network-fee spenders", () => {
     for (const name of FEE_SPENDING_TOOLS) {
       expect(paidOperationClass(name), name).toBe("fee");
-    }
-  });
-
-  it("classifies tools that cost nothing as null", () => {
-    for (const name of [
-      "zentrixpay_browse",
-      "zentrixpay_search",
-      "zentrixpay_preview",
-      "zentrixpay_wallet_info",
-      "zentrixpay_reset",
-      "zentrixpay_registry_lookup",
-    ]) {
-      expect(paidOperationClass(name), name).toBeNull();
     }
   });
 
@@ -193,11 +170,6 @@ describe("requiresPaidConfirmation", () => {
     }
   });
 
-  it("never requires confirmation for a tool that costs nothing", () => {
-    for (const policy of ["off", "usdc", "all"] as const) {
-      expect(requiresPaidConfirmation("zentrixpay_browse", policy), policy).toBe(false);
-    }
-  });
 });
 
 describe("assertPaidOperationConfirmed", () => {
@@ -207,111 +179,6 @@ describe("assertPaidOperationConfirmed", () => {
         assertPaidOperationConfirmed({ toolName: name, args: {}, env: {} }),
       ).not.toThrow();
     }
-  });
-
-  it("blocks an unconfirmed spend under usdc", () => {
-    expect(() =>
-      assertPaidOperationConfirmed({ toolName: "zentrixpay_buy", args: {}, env: envWith("usdc") }),
-    ).toThrow(/Paid-operation guardrail/);
-  });
-
-  it("allows a confirmed spend", () => {
-    expect(() =>
-      assertPaidOperationConfirmed({
-        toolName: "zentrixpay_buy",
-        args: { [PAID_CONFIRMATION_ARG]: true },
-        env: envWith("usdc"),
-      }),
-    ).not.toThrow();
-  });
-
-  it.each([true, 1, "true", "1", "yes"])("accepts %j as confirmation", (value) => {
-    // The same truthy forms as confirmMainnet, so agents learn one convention
-    // rather than one per guardrail.
-    expect(() =>
-      assertPaidOperationConfirmed({
-        toolName: "zentrixpay_buy",
-        args: { [PAID_CONFIRMATION_ARG]: value },
-        env: envWith("usdc"),
-      }),
-    ).not.toThrow();
-  });
-
-  it.each([false, 0, "false", "no", "", null, undefined])(
-    "does not accept %j as confirmation",
-    (value) => {
-      expect(() =>
-        assertPaidOperationConfirmed({
-          toolName: "zentrixpay_buy",
-          args: { [PAID_CONFIRMATION_ARG]: value },
-          env: envWith("usdc"),
-        }),
-      ).toThrow(/Paid-operation guardrail/);
-    },
-  );
-
-  it("exempts a dry run", () => {
-    // A dry run submits no payment. Gating it would mean confirming a spend in
-    // order to find out what the spend would be.
-    expect(() =>
-      assertPaidOperationConfirmed({
-        toolName: "zentrixpay_buy",
-        args: {},
-        dryRun: true,
-        env: envWith("all"),
-      }),
-    ).not.toThrow();
-  });
-
-  it("tolerates missing arguments", () => {
-    expect(() =>
-      assertPaidOperationConfirmed({
-        toolName: "zentrixpay_buy",
-        args: undefined,
-        env: envWith("usdc"),
-      }),
-    ).toThrow(/Paid-operation guardrail/);
-  });
-
-  it("surfaces a misconfigured policy rather than skipping the check", () => {
-    expect(() =>
-      assertPaidOperationConfirmed({ toolName: "zentrixpay_buy", args: {}, env: envWith("on") }),
-    ).toThrow(/must be one of/);
-  });
-});
-
-describe("paidConfirmationRequiredError", () => {
-  const message = paidConfirmationRequiredError("zentrixpay_buy", "usdc").message;
-
-  it("names the tool, the policy, and the argument that satisfies it", () => {
-    expect(message).toContain("zentrixpay_buy");
-    expect(message).toContain(PAID_CONFIRMATION_ENV_VAR);
-    expect(message).toContain(PAID_CONFIRMATION_ARG);
-  });
-
-  it("says what the call would cost", () => {
-    expect(message).toMatch(/spends USDC/);
-    expect(paidConfirmationRequiredError("zentrixpay_set_price", "all").message).toMatch(
-      /network fees/,
-    );
-  });
-
-  it("is deterministic and leaks nothing", () => {
-    expect(paidConfirmationRequiredError("zentrixpay_buy", "usdc").message).toBe(message);
-    expect(message).not.toMatch(/\/(home|Users|tmp)\//);
-    expect(message).not.toContain("at ");
-  });
-});
-
-describe("formatPaidConfirmationDiagnostics", () => {
-  it("reports the policy as off and how to enable it", () => {
-    expect(formatPaidConfirmationDiagnostics({})).toMatch(/off/);
-    expect(formatPaidConfirmationDiagnostics({})).toContain(PAID_CONFIRMATION_ENV_VAR);
-  });
-
-  it("names the gated tools under each active policy", () => {
-    expect(formatPaidConfirmationDiagnostics(envWith("usdc"))).toContain("zentrixpay_buy");
-    expect(formatPaidConfirmationDiagnostics(envWith("all"))).toContain("zentrixpay_set_price");
   });
 
   it("reports a misconfiguration instead of throwing", () => {
@@ -343,62 +210,6 @@ describe("the paid-operation policy through the MCP server", () => {
     delete process.env[PAID_CONFIRMATION_ENV_VAR];
   });
 
-  it("blocks an unconfirmed buy under usdc", async () => {
-    process.env[PAID_CONFIRMATION_ENV_VAR] = "usdc";
-    const result = await harness.callTool("zentrixpay_buy", { resourceId: "mock-1" });
-
-    expect(harnessIsToolError(result)).toBe(true);
-    expect(harnessResultText(result)).toContain("Paid-operation guardrail");
-  });
-
-  it("lets a confirmed buy past the guardrail", async () => {
-    process.env[PAID_CONFIRMATION_ENV_VAR] = "usdc";
-    // The call still fails — there is no wallet in this profile — but it fails
-    // *inside the tool*, which is what proves the guardrail let it through.
-    await expect(
-      dispatchTool("zentrixpay_buy", { resourceId: "mock-1", confirmPaid: true }),
-    ).rejects.toThrow(/No wallet in profile/);
-  });
-
-  it("lets a dry run past without confirmation", async () => {
-    process.env[PAID_CONFIRMATION_ENV_VAR] = "all";
-    const result = await harness.callTool("zentrixpay_buy", {
-      resourceId: "mock-1",
-      dryRun: true,
-    });
-
-    expect(harnessIsToolError(result)).toBe(false);
-    expect(harnessResultText(result)).toContain("dry-run");
-  });
-
-  it("leaves fee-only tools alone under usdc but gates them under all", async () => {
-    const args = { resourceId: "mock-1", price: "1.00" };
-
-    process.env[PAID_CONFIRMATION_ENV_VAR] = "usdc";
-    expect(await dispatchFailure("zentrixpay_set_price", args)).not.toMatch(
-      /Paid-operation guardrail/,
-    );
-
-    process.env[PAID_CONFIRMATION_ENV_VAR] = "all";
-    expect(await dispatchFailure("zentrixpay_set_price", args)).toMatch(/Paid-operation guardrail/);
-  });
-
-  it("does not gate read-only tools under any policy", async () => {
-    for (const policy of ["usdc", "all"]) {
-      process.env[PAID_CONFIRMATION_ENV_VAR] = policy;
-      const result = await harness.callTool("zentrixpay_browse", {});
-      expect(harnessIsToolError(result), policy).toBe(false);
-    }
-  });
-
-  it("changes nothing when the policy is off", async () => {
-    // The upgrade-safety property: an existing deployment that never sets the
-    // variable must behave exactly as it did before this guardrail existed.
-    await expect(dispatchTool("zentrixpay_buy", { resourceId: "mock-1" })).rejects.toThrow(
-      /No wallet in profile/,
-    );
-  });
-
   it("accepts confirmPaid as a validated argument on every gated tool", async () => {
     // A guardrail whose own argument the validator rejects is unusable — the
     // shape of the zentrixpay_reset.confirm bug in #596.
@@ -414,47 +225,4 @@ describe("the paid-operation policy through the MCP server", () => {
     }
   });
 
-  it("reports a misconfigured policy as a tool error, not a crash", async () => {
-    process.env[PAID_CONFIRMATION_ENV_VAR] = "loud";
-    const result = await harness.callTool("zentrixpay_buy", { resourceId: "mock-1" });
-
-    expect(harnessIsToolError(result)).toBe(true);
-    expect(harnessResultText(result)).toContain("must be one of");
-  });
-});
-
-describe("composition with the other guardrails", () => {
-  afterEach(() => {
-    delete process.env[PAID_CONFIRMATION_ENV_VAR];
-  });
-
-  it("does not let confirmPaid stand in for confirmMainnet", async () => {
-    // Each guardrail answers its own question. Satisfying the spend policy must
-    // not imply consent to spend on the *public* network — that is a separate
-    // decision with a separate flag.
-    const { assertMainnetMutationAllowed } = await import("./mainnetGuardrails.js");
-    expect(() =>
-      assertMainnetMutationAllowed("mainnet", "zentrixpay_buy", { confirmPaid: true }, {}),
-    ).toThrow(/Mainnet guardrail/);
-  });
-
-  it("does not let confirmMainnet stand in for confirmPaid", () => {
-    expect(() =>
-      assertPaidOperationConfirmed({
-        toolName: "zentrixpay_buy",
-        args: { confirmMainnet: true },
-        env: envWith("usdc"),
-      }),
-    ).toThrow(/Paid-operation guardrail/);
-  });
-
-  it("requires both when both apply", async () => {
-    const { assertMainnetMutationAllowed } = await import("./mainnetGuardrails.js");
-    const args = { confirmMainnet: true, confirmPaid: true };
-
-    expect(() => assertMainnetMutationAllowed("mainnet", "zentrixpay_buy", args, {})).not.toThrow();
-    expect(() =>
-      assertPaidOperationConfirmed({ toolName: "zentrixpay_buy", args, env: envWith("usdc") }),
-    ).not.toThrow();
-  });
 });

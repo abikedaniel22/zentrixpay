@@ -35,45 +35,36 @@ export const REGENERATE_COMMAND = "pnpm --filter @zentrixpay/mcp generate-tool-d
  * rather than a single flat list.
  */
 export function groupOf(name: string): string {
-  if (["zentrixpay_setup_wallet", "zentrixpay_wallet_info", "zentrixpay_import_wallet"].includes(name))
+  if (
+    [
+      "zentrixpay_list_apis",
+      "zentrixpay_api_info",
+      "zentrixpay_call",
+      "zentrixpay_register_api",
+      "zentrixpay_update_api",
+      "zentrixpay_verify_api_ownership",
+      "zentrixpay_my_apis",
+      "zentrixpay_api_stats",
+    ].includes(name)
+  )
+    return "Pay-per-call APIs";
+  if (
+    [
+      "zentrixpay_setup_wallet",
+      "zentrixpay_wallet_info",
+      "zentrixpay_import_wallet",
+      "zentrixpay_repair_sponsored_account",
+    ].includes(name)
+  )
     return "Wallet";
-  if (["zentrixpay_use_profile", "zentrixpay_list_profiles"].includes(name)) return "Profiles";
-  if (["zentrixpay_browse", "zentrixpay_search", "zentrixpay_preview"].includes(name))
-    return "Catalog";
   if (
-    [
-      "zentrixpay_register",
-      "zentrixpay_publish",
-      "zentrixpay_publish_status",
-      "zentrixpay_buy",
-      "zentrixpay_buy_lease",
-      "zentrixpay_lease_status",
-    ].includes(name)
+    ["zentrixpay_use_profile", "zentrixpay_list_profiles", "zentrixpay_switch_network_profile"].includes(
+      name,
+    )
   )
-    return "Publishing & Buying";
-  if (
-    [
-      "zentrixpay_register_onchain",
-      "zentrixpay_update_metadata",
-      "zentrixpay_set_price",
-      "zentrixpay_set_tags",
-      "zentrixpay_transfer_ownership",
-      "zentrixpay_set_listed",
-    ].includes(name)
-  )
-    return "On-chain Management";
-  if (
-    [
-      "zentrixpay_registry_info",
-      "zentrixpay_registry_lookup",
-      "zentrixpay_registry_list",
-      "zentrixpay_registry_health",
-      "zentrixpay_check_consistency",
-      "zentrixpay_check_bindings",
-      "zentrixpay_tx_status",
-    ].includes(name)
-  )
-    return "Registry & Diagnostics";
+    return "Profiles";
+  if (["zentrixpay_register"].includes(name)) return "Publishing";
+  if (["zentrixpay_tx_status"].includes(name)) return "Diagnostics";
   if (["zentrixpay_purchase_history", "zentrixpay_export_receipts"].includes(name)) return "Receipts";
   if (
     [
@@ -86,12 +77,13 @@ export function groupOf(name: string): string {
     return "State Management";
   if (
     [
-      "zentrixpay_agent_status",
       "zentrixpay_network_profile",
       "zentrixpay_metrics",
       "zentrixpay_rotate_publisher_key",
       "zentrixpay_verify_install",
       "zentrixpay_debug_bundle",
+      "zentrixpay_client_config",
+      "zentrixpay_mainnet_banner",
     ].includes(name)
   )
     return "Operations";
@@ -99,12 +91,11 @@ export function groupOf(name: string): string {
 }
 
 const GROUP_ORDER = [
+  "Pay-per-call APIs",
   "Wallet",
   "Profiles",
-  "Catalog",
-  "Publishing & Buying",
-  "On-chain Management",
-  "Registry & Diagnostics",
+  "Publishing",
+  "Diagnostics",
   "Receipts",
   "State Management",
   "Operations",

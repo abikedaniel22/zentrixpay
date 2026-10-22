@@ -1,0 +1,2040 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tool schema snapshots > zentrixpay_backup_state > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Back Up State",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_backup_state > input schema 1`] = `
+{
+  "properties": {
+    "confirm": {
+      "description": "Required to write the encrypted recovery file. Omitted or false returns a safety preview.",
+      "type": "boolean",
+    },
+    "passphrase": {
+      "description": "Passphrase used to encrypt the backup (min 8 characters). Keep it offline.",
+      "type": "string",
+    },
+  },
+  "required": [
+    "passphrase",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_backup_state > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_check_state_permissions > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Check State Permissions",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_check_state_permissions > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_check_state_permissions > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_debug_bundle > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Export Debug Bundle",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_debug_bundle > input schema 1`] = `
+{
+  "properties": {
+    "auditLogLines": {
+      "description": "Audit-log entries to include from the end of ZENTRIXPAY_AUDIT_LOG_FILE (0–500, default 50). 0 omits the section.",
+      "examples": [
+        50,
+        200,
+      ],
+      "maximum": 500,
+      "minimum": 0,
+      "type": "integer",
+    },
+    "includeEnvironment": {
+      "description": "Include the ZentrixPay-related environment variables with credential-like values masked. Default true; pass false to omit the section entirely.",
+      "examples": [
+        true,
+        false,
+      ],
+      "type": "boolean",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_debug_bundle > output schema 1`] = `
+{
+  "properties": {
+    "auditLog": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+        },
+        "entries": {
+          "items": {
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "exists": {
+          "type": "boolean",
+        },
+        "filePath": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "requested": {
+          "type": "integer",
+        },
+      },
+      "required": [
+        "enabled",
+        "filePath",
+        "exists",
+        "requested",
+        "entries",
+      ],
+      "type": "object",
+    },
+    "catalogCache": {
+      "properties": {
+        "maxAgeMs": {
+          "type": "integer",
+        },
+        "snapshot": {
+          "properties": {
+            "label": {
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+            "present": {
+              "type": "boolean",
+            },
+            "resourceCount": {
+              "type": "integer",
+            },
+            "savedAt": {
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+          },
+          "required": [
+            "present",
+            "savedAt",
+            "resourceCount",
+            "label",
+          ],
+          "type": "object",
+        },
+        "ttlMs": {
+          "type": "integer",
+        },
+      },
+      "required": [
+        "ttlMs",
+        "maxAgeMs",
+        "snapshot",
+      ],
+      "type": "object",
+    },
+    "config": {
+      "description": "The fully resolved configuration (env var, network preset, or default).",
+      "properties": {
+        "baseUrl": {
+          "type": "string",
+        },
+        "horizonUrl": {
+          "type": "string",
+        },
+        "registryContractId": {
+          "type": "string",
+        },
+        "registryNetworkPassphrase": {
+          "type": "string",
+        },
+        "sorobanRpcUrl": {
+          "type": "string",
+        },
+        "sponsoredAccountUrl": {
+          "type": "string",
+        },
+        "stellarNetwork": {
+          "type": "string",
+        },
+        "x402Network": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "stellarNetwork",
+        "x402Network",
+        "baseUrl",
+        "registryContractId",
+      ],
+      "type": "object",
+    },
+    "diagnostics": {
+      "items": {
+        "properties": {
+          "expected": {
+            "type": "string",
+          },
+          "message": {
+            "type": "string",
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning",
+            ],
+            "type": "string",
+          },
+          "variable": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "variable",
+          "severity",
+          "message",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "environment": {
+      "additionalProperties": {
+        "type": "string",
+      },
+      "description": "ZentrixPay-related environment variables; credential-like names carry "[REDACTED]". Null when includeEnvironment is false.",
+      "type": [
+        "object",
+        "null",
+      ],
+    },
+    "generatedAt": {
+      "description": "ISO-8601 instant the bundle was produced.",
+      "type": "string",
+    },
+    "install": {
+      "properties": {
+        "checks": {
+          "items": {
+            "properties": {
+              "detail": {
+                "type": "string",
+              },
+              "name": {
+                "type": "string",
+              },
+              "ok": {
+                "type": "boolean",
+              },
+            },
+            "required": [
+              "name",
+              "ok",
+              "detail",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "ok": {
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "ok",
+        "checks",
+      ],
+      "type": "object",
+    },
+    "metrics": {
+      "description": "The zentrixpay_metrics snapshot; enabled=false when metrics are off.",
+      "type": "object",
+    },
+    "profiles": {
+      "properties": {
+        "active": {
+          "type": "string",
+        },
+        "entries": {
+          "items": {
+            "properties": {
+              "active": {
+                "type": "boolean",
+              },
+              "hasApiKey": {
+                "type": "boolean",
+              },
+              "hasWallet": {
+                "type": "boolean",
+              },
+              "name": {
+                "type": "string",
+              },
+              "publicKey": {
+                "type": [
+                  "string",
+                  "null",
+                ],
+              },
+            },
+            "required": [
+              "name",
+              "active",
+              "hasWallet",
+              "publicKey",
+              "hasApiKey",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "active",
+        "entries",
+      ],
+      "type": "object",
+    },
+    "runtime": {
+      "properties": {
+        "arch": {
+          "type": "string",
+        },
+        "mockMode": {
+          "type": "boolean",
+        },
+        "nodeVersion": {
+          "type": "string",
+        },
+        "platform": {
+          "type": "string",
+        },
+        "readOnlyMode": {
+          "type": "boolean",
+        },
+        "serverVersion": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "serverVersion",
+        "nodeVersion",
+        "platform",
+        "arch",
+        "mockMode",
+        "readOnlyMode",
+      ],
+      "type": "object",
+    },
+    "sanitized": {
+      "description": "What was withheld and the rules that decided it.",
+      "properties": {
+        "maskedEnvironment": {
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "rules": {
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+      },
+      "required": [
+        "maskedEnvironment",
+        "rules",
+      ],
+      "type": "object",
+    },
+    "schema": {
+      "const": "zentrixpay.debug-bundle/v1",
+      "type": "string",
+    },
+    "state": {
+      "properties": {
+        "dir": {
+          "type": "string",
+        },
+        "file": {
+          "type": "string",
+        },
+        "permissions": {
+          "properties": {
+            "exists": {
+              "type": "boolean",
+            },
+            "expectedMode": {
+              "type": "string",
+            },
+            "isSafe": {
+              "type": "boolean",
+            },
+            "message": {
+              "type": "string",
+            },
+            "mode": {
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+          },
+          "required": [
+            "exists",
+            "mode",
+            "expectedMode",
+            "isSafe",
+            "message",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "dir",
+        "file",
+        "permissions",
+      ],
+      "type": "object",
+    },
+  },
+  "required": [
+    "schema",
+    "generatedAt",
+    "sanitized",
+    "runtime",
+    "config",
+    "environment",
+    "diagnostics",
+    "install",
+    "profiles",
+    "state",
+    "metrics",
+    "catalogCache",
+    "auditLog",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_export_receipts > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Export Receipts",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_export_receipts > input schema 1`] = `
+{
+  "properties": {
+    "format": {
+      "description": "Output format. "json" (default) returns the receipts array; "csv" additionally renders the same rows as an RFC 4180 document in the envelope's csv field; "ndjson" renders each row as a JSON object on its own line in the envelope's ndjson field.",
+      "enum": [
+        "json",
+        "csv",
+        "ndjson",
+      ],
+      "examples": [
+        "json",
+        "csv",
+        "ndjson",
+      ],
+      "type": "string",
+    },
+    "groupBy": {
+      "description": "Optional grouping. Use "month" to include per-month receipt counts and USDC totals (UTC) in monthlySummaries.",
+      "enum": [
+        "month",
+      ],
+      "examples": [
+        "month",
+      ],
+      "type": "string",
+    },
+    "limit": {
+      "description": "Max receipts to export, newest first (1–500).",
+      "examples": [
+        50,
+        100,
+      ],
+      "maximum": 500,
+      "minimum": 1,
+      "type": "integer",
+    },
+    "network": {
+      "description": "Export only receipts settled on this x402 network id. Example: 'stellar:testnet'.",
+      "examples": [
+        "stellar:testnet",
+        "stellar:pubnet",
+      ],
+      "type": "string",
+    },
+    "resourceId": {
+      "description": "Export only receipts for this resource id.",
+      "examples": [
+        "cm7x8y9z",
+        "swcn98besxpp6t1u8e77fqz3",
+      ],
+      "type": "string",
+    },
+    "since": {
+      "description": "Inclusive lower bound on the purchase time (ISO-8601 date or timestamp; a bare date is read as midnight UTC).",
+      "examples": [
+        "2026-08-01",
+        "2026-08-01T12:00:00Z",
+      ],
+      "type": "string",
+    },
+    "until": {
+      "description": "Inclusive upper bound on the purchase time (ISO-8601 date or timestamp).",
+      "examples": [
+        "2026-08-31",
+        "2026-08-31T23:59:59Z",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_export_receipts > output schema 1`] = `
+{
+  "properties": {
+    "count": {
+      "description": "Number of exported receipts.",
+      "type": "integer",
+    },
+    "csv": {
+      "description": "RFC 4180 document of the same rows. Present only when format is "csv".",
+      "type": "string",
+    },
+    "currency": {
+      "const": "USDC",
+      "type": "string",
+    },
+    "filters": {
+      "description": "The filters this export was produced with; null where unset.",
+      "properties": {
+        "groupBy": {
+          "enum": [
+            "month",
+            null,
+          ],
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null",
+          ],
+        },
+        "network": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "resourceId": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "since": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "until": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "resourceId",
+        "network",
+        "since",
+        "until",
+        "limit",
+        "groupBy",
+      ],
+      "type": "object",
+    },
+    "format": {
+      "enum": [
+        "json",
+        "csv",
+        "ndjson",
+      ],
+      "type": "string",
+    },
+    "generatedAt": {
+      "description": "ISO-8601 instant the export was produced.",
+      "type": "string",
+    },
+    "ndjson": {
+      "description": "Newline-Delimited JSON document of the same rows. Present only when format is "ndjson".",
+      "type": "string",
+    },
+    "receipts": {
+      "items": {
+        "properties": {
+          "amount": {
+            "type": "string",
+          },
+          "currency": {
+            "const": "USDC",
+            "type": "string",
+          },
+          "explorerUrl": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "network": {
+            "type": "string",
+          },
+          "purchasedAt": {
+            "type": "string",
+          },
+          "receiptRef": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "resourceId": {
+            "type": "string",
+          },
+          "title": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "txHash": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "resourceId",
+          "title",
+          "amount",
+          "currency",
+          "network",
+          "purchasedAt",
+          "txHash",
+          "receiptRef",
+          "explorerUrl",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "schema": {
+      "const": "zentrixpay.receipt-export/v1",
+      "type": "string",
+    },
+    "totalAmount": {
+      "description": "Sum of the exported amounts as a decimal string.",
+      "type": "string",
+    },
+  },
+  "required": [
+    "schema",
+    "generatedAt",
+    "format",
+    "filters",
+    "count",
+    "totalAmount",
+    "currency",
+    "receipts",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_import_wallet > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": false,
+  "readOnlyHint": false,
+  "title": "Import Wallet",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_import_wallet > input schema 1`] = `
+{
+  "properties": {
+    "confirmMainnet": {
+      "description": "Required on mainnet (or set ZENTRIXPAY_ALLOW_MAINNET=1). Explicitly confirm this mutation on the public Stellar network.",
+      "type": "boolean",
+    },
+    "persist": {
+      "description": "When true (default), save the imported wallet to the state file. When false, validate only and return the public key without writing to disk.",
+      "examples": [
+        true,
+        false,
+      ],
+      "type": "boolean",
+    },
+    "profile": {
+      "description": "Optional profile name to import into. Defaults to the active profile.",
+      "examples": [
+        "testnet",
+        "mainnet-publisher",
+      ],
+      "type": "string",
+    },
+    "secretKey": {
+      "description": "Stellar secret key (S… , 56 chars) to import. If omitted, reads from ZENTRIXPAY_AGENT_SECRET env var.",
+      "examples": [
+        "SCHZPJ...",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_import_wallet > output schema 1`] = `
+{
+  "properties": {
+    "address": {
+      "type": "string",
+    },
+    "persisted": {
+      "type": "boolean",
+    },
+    "profile": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "profile",
+    "address",
+    "persisted",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_list_profiles > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "List Profiles",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_list_profiles > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_list_profiles > output schema 1`] = `
+{
+  "properties": {
+    "active": {
+      "type": "string",
+    },
+    "profiles": {
+      "items": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+          },
+          "address": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "name": {
+            "type": "string",
+          },
+          "publisherRegistered": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "name",
+          "address",
+          "publisherRegistered",
+          "active",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "active",
+    "profiles",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_mainnet_banner > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Mainnet Session Banner",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_mainnet_banner > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_mainnet_banner > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_metrics > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": false,
+  "title": "Tool Metrics",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_metrics > input schema 1`] = `
+{
+  "properties": {
+    "format": {
+      "default": "json",
+      "description": "Metrics export format. json (default) returns the snapshot object; otlp returns the same data as an OTLP/JSON ExportMetricsServiceRequest payload (a resourceMetrics envelope ready for an OpenTelemetry collector).",
+      "enum": [
+        "json",
+        "otlp",
+      ],
+      "examples": [
+        "json",
+        "otlp",
+      ],
+      "type": "string",
+    },
+    "reset": {
+      "description": "Clear all counters after returning the current snapshot (default: false leaves counters intact). Example: true resets metrics after reading.",
+      "examples": [
+        true,
+        false,
+      ],
+      "type": "boolean",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_metrics > output schema 1`] = `
+{
+  "oneOf": [
+    {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+        },
+        "message": {
+          "type": "string",
+        },
+        "payments": {
+          "type": "object",
+        },
+        "since": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "toolDurationBudgetMs": {
+          "type": [
+            "integer",
+            "null",
+          ],
+        },
+        "tools": {
+          "type": "object",
+        },
+        "totals": {
+          "type": "object",
+        },
+      },
+      "required": [
+        "enabled",
+      ],
+      "type": "object",
+    },
+    {
+      "description": "The same snapshot rendered as an OTLP/JSON ExportMetricsServiceRequest body when format=otlp.",
+      "required": [
+        "resourceMetrics",
+      ],
+      "type": "object",
+    },
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_network_profile > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Network Profile",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_network_profile > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_network_profile > output schema 1`] = `
+{
+  "properties": {
+    "horizonUrl": {
+      "type": "string",
+    },
+    "registryContractId": {
+      "type": "string",
+    },
+    "retries": {},
+    "sorobanRpcUrl": {
+      "type": "string",
+    },
+    "stellarNetwork": {
+      "type": "string",
+    },
+    "timeouts": {},
+    "usdcContractId": {},
+    "warnings": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "x402Network": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "stellarNetwork",
+    "x402Network",
+    "sorobanRpcUrl",
+    "horizonUrl",
+    "registryContractId",
+    "usdcContractId",
+    "warnings",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_publish_template > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Publish Template",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_publish_template > input schema 1`] = `
+{
+  "properties": {
+    "metadataPointer": {
+      "description": "Optional metadata pointer override. When supplied, replaces the type-default format. Must start with ipfs://, ar://, http(s)://, sha256:, sha-256:, or 0x.",
+      "examples": [
+        "ipfs://QmXyz...",
+        "sha256:abc123...",
+      ],
+      "type": "string",
+    },
+    "price": {
+      "description": "Optional USDC price override (decimal string). Overrides the suggested price for the chosen resource type.",
+      "examples": [
+        "1.00",
+        "5.00",
+        "10.00",
+      ],
+      "type": "string",
+    },
+    "resourceType": {
+      "description": "Known resource type to generate defaults for. Each type has its own canonical tags, metadata pointer format, suggested price, and description template.",
+      "enum": [
+        "dataset",
+        "code",
+        "prompt",
+        "model",
+      ],
+      "examples": [
+        "dataset",
+        "code",
+        "prompt",
+        "model",
+      ],
+      "type": "string",
+    },
+    "tags": {
+      "description": "Optional tag override (replaces, not merges, the type-default tags). 1–8 lowercase tags, each 1–32 characters.",
+      "examples": [
+        [
+          "dataset",
+          "finance",
+          "time-series",
+        ],
+      ],
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "title": {
+      "description": "Optional title to include in the returned spec (1–256 characters).",
+      "examples": [
+        "My Training Dataset",
+        "GPT-4 System Prompt Library",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "resourceType",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_publish_template > output schema 1`] = `
+{
+  "properties": {
+    "description": {
+      "type": "string",
+    },
+    "metadataPointer": {
+      "type": "string",
+    },
+    "nextSteps": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "price": {
+      "type": "string",
+    },
+    "resourceType": {
+      "enum": [
+        "dataset",
+        "code",
+        "prompt",
+        "model",
+      ],
+      "type": "string",
+    },
+    "tags": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "title": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "resourceType",
+    "title",
+    "metadataPointer",
+    "tags",
+    "price",
+    "description",
+    "nextSteps",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_purchase_history > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Purchase History",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_purchase_history > input schema 1`] = `
+{
+  "properties": {
+    "network": {
+      "description": "Optional. Only return receipts recorded on this x402 network id. Example: 'stellar:testnet'",
+      "examples": [
+        "stellar:testnet",
+        "stellar:pubnet",
+      ],
+      "type": "string",
+    },
+    "query": {
+      "description": "Optional case-insensitive text search across receipt resource ids and titles.",
+      "examples": [
+        "stellar",
+        "res-001",
+      ],
+      "type": "string",
+    },
+    "resourceId": {
+      "description": "Optional. Only return receipts for this resource id. Example: 'cm7x8y9z'",
+      "examples": [
+        "cm7x8y9z",
+        "res-001",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_purchase_history > output schema 1`] = `
+{
+  "properties": {
+    "count": {
+      "type": "integer",
+    },
+    "message": {
+      "type": "string",
+    },
+    "purchases": {
+      "type": "array",
+    },
+  },
+  "required": [
+    "count",
+    "purchases",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_register > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": false,
+  "readOnlyHint": false,
+  "title": "Register Publisher",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_register > input schema 1`] = `
+{
+  "properties": {
+    "confirmMainnet": {
+      "description": "Required on mainnet (or set ZENTRIXPAY_ALLOW_MAINNET=1). Explicitly confirm this mutation/payment on the public Stellar network.",
+      "type": "boolean",
+    },
+    "email": {
+      "description": "Contact email for the publisher record. Must be a valid address (max 254 chars).",
+      "examples": [
+        "agent-a@example.com",
+      ],
+      "type": "string",
+    },
+    "name": {
+      "description": "Publisher display name shown in the catalog (1–128 characters).",
+      "examples": [
+        "Agent A",
+        "Research Bot",
+      ],
+      "type": "string",
+    },
+    "walletAddress": {
+      "description": "Optional Stellar public key to receive payouts (G… , 56 chars). Defaults to the active profile's agent wallet.",
+      "examples": [
+        "GA6HCMBLTZS5VYYBCATRBRZ3BZJMAFUDKYYF6AH6MVCMGWMRDNSWJPIH",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "email",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_register > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_repair_sponsored_account > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": false,
+  "title": "Repair Sponsored Account",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_repair_sponsored_account > input schema 1`] = `
+{
+  "properties": {
+    "confirmMainnet": {
+      "description": "Required on mainnet (or set ZENTRIXPAY_ALLOW_MAINNET=1). Explicitly confirm restoring credentials for the public Stellar network.",
+      "type": "boolean",
+    },
+    "profile": {
+      "description": "Optional profile to repair; defaults to the active profile.",
+      "examples": [
+        "default",
+        "publisher",
+      ],
+      "type": "string",
+    },
+    "secretKey": {
+      "description": "The recovered Stellar secret key returned during the interrupted setup.",
+      "type": "string",
+    },
+  },
+  "required": [
+    "secretKey",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_repair_sponsored_account > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_reset > annotations 1`] = `
+{
+  "destructiveHint": true,
+  "idempotentHint": true,
+  "readOnlyHint": false,
+  "title": "Reset State",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_reset > input schema 1`] = `
+{
+  "properties": {
+    "all": {
+      "description": "Clear every profile and delete the state file (default: false clears active profile only). Example: true removes all profiles.",
+      "examples": [
+        true,
+        false,
+      ],
+      "type": "boolean",
+    },
+    "confirm": {
+      "description": "Required to actually clear anything. Omitted or false returns a warning describing what would be removed and performs no deletion. Example: true clears the credentials.",
+      "examples": [
+        true,
+        false,
+      ],
+      "type": "boolean",
+    },
+    "confirmMainnet": {
+      "description": "Required on mainnet (or set ZENTRIXPAY_ALLOW_MAINNET=1). Explicitly confirm this mutation/payment on the public Stellar network.",
+      "type": "boolean",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_reset > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_restore_state > annotations 1`] = `
+{
+  "destructiveHint": true,
+  "idempotentHint": false,
+  "readOnlyHint": false,
+  "title": "Restore State",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_restore_state > input schema 1`] = `
+{
+  "properties": {
+    "blob": {
+      "description": "Encrypted backup blob from zentrixpay_backup_state (v1:… format).",
+      "type": "string",
+    },
+    "passphrase": {
+      "description": "Passphrase used when the backup was created (min 8 characters).",
+      "type": "string",
+    },
+  },
+  "required": [
+    "blob",
+    "passphrase",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_restore_state > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_rotate_publisher_key > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": false,
+  "readOnlyHint": false,
+  "title": "Rotate Publisher Key",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_rotate_publisher_key > input schema 1`] = `
+{
+  "properties": {
+    "confirmMainnet": {
+      "description": "Required on mainnet (or set ZENTRIXPAY_ALLOW_MAINNET=1). Explicitly confirm this mutation on the public Stellar network.",
+      "type": "boolean",
+    },
+    "profile": {
+      "description": "Optional profile name to rotate the key for. Defaults to the active profile.",
+      "examples": [
+        "testnet",
+        "mainnet-publisher",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_rotate_publisher_key > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_server_endpoints > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Server Endpoints",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_server_endpoints > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_server_endpoints > output schema 1`] = `
+{
+  "properties": {
+    "baseUrl": {
+      "type": "string",
+    },
+    "endpointCount": {
+      "type": "integer",
+    },
+    "message": {
+      "type": "string",
+    },
+    "openapi": {
+      "type": [
+        "string",
+        "null",
+      ],
+    },
+    "operations": {
+      "items": {
+        "properties": {
+          "method": {
+            "type": "string",
+          },
+          "operationId": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "path": {
+            "type": "string",
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "tags": {
+            "items": {
+              "type": "string",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "method",
+          "path",
+          "operationId",
+          "tags",
+          "summary",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "paths": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "server": {
+      "type": [
+        "object",
+        "null",
+      ],
+    },
+    "source": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "source",
+    "baseUrl",
+    "openapi",
+    "server",
+    "endpointCount",
+    "operations",
+    "paths",
+    "message",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_setup_wallet > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": false,
+  "readOnlyHint": false,
+  "title": "Set Up Wallet",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_setup_wallet > input schema 1`] = `
+{
+  "properties": {
+    "confirmMainnet": {
+      "description": "Required on mainnet (or set ZENTRIXPAY_ALLOW_MAINNET=1). Explicitly confirm this mutation/payment on the public Stellar network.",
+      "type": "boolean",
+    },
+    "profile": {
+      "description": "Optional profile name to create/switch to. Use letters, digits, dot, dash, or underscore (1–64 chars). Examples: 'testnet', 'mainnet-publisher', 'buyer.alice'",
+      "examples": [
+        "testnet",
+        "mainnet-publisher",
+        "buyer.alice",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_setup_wallet > output schema 1`] = `
+{
+  "properties": {
+    "address": {
+      "type": "string",
+    },
+    "persisted": {
+      "type": "boolean",
+    },
+    "profile": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "profile",
+    "address",
+    "persisted",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_switch_network_profile > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": false,
+  "title": "Switch Network Profile",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_switch_network_profile > input schema 1`] = `
+{
+  "properties": {
+    "name": {
+      "description": "Profile name to activate.",
+      "type": "string",
+    },
+    "network": {
+      "description": "Stellar network for this profile.",
+      "enum": [
+        "testnet",
+        "mainnet",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "network",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_switch_network_profile > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_tx_status > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Transaction Status",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_tx_status > input schema 1`] = `
+{
+  "properties": {
+    "txHash": {
+      "description": "The 64-character hex transaction hash from Stellar (a sha256 digest; case-insensitive, 'sha256:' prefix accepted). From zentrixpay_register_onchain or zentrixpay_publish output.",
+      "examples": [
+        "f47ac10b58cc4372a5670e02b2c3d479c3e5d0a1b2c3d4e5f6a7b8c9d0e1f2a3",
+        "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "txHash",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_tx_status > output schema 1`] = `
+{
+  "oneOf": [
+    {
+      "properties": {
+        "applicationOrder": {},
+        "envelopeXdr": {},
+        "feeBump": {},
+        "hash": {
+          "type": "string",
+        },
+        "latestLedger": {},
+        "ledger": {},
+        "ledgerCloseTime": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "message": {
+          "type": "string",
+        },
+        "oldestLedger": {},
+        "resultMetaXdr": {},
+        "resultXdr": {},
+        "status": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "status",
+        "hash",
+      ],
+      "type": "object",
+    },
+    {
+      "properties": {
+        "message": {
+          "type": "string",
+        },
+        "status": {
+          "const": "text",
+          "type": "string",
+        },
+      },
+      "required": [
+        "status",
+        "message",
+      ],
+      "type": "object",
+    },
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_use_profile > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": false,
+  "title": "Use Profile",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_use_profile > input schema 1`] = `
+{
+  "properties": {
+    "name": {
+      "description": "Profile name to make active. Use letters, digits, dot, dash, or underscore (1–64 chars). Examples: 'mainnet', 'testnet-buyer', 'publisher.bob'",
+      "examples": [
+        "mainnet",
+        "testnet-buyer",
+        "publisher.bob",
+      ],
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_use_profile > output schema 1`] = `
+{
+  "properties": {
+    "address": {
+      "type": [
+        "string",
+        "null",
+      ],
+    },
+    "profile": {
+      "type": "string",
+    },
+    "publisherRegistered": {
+      "type": [
+        "boolean",
+        "null",
+      ],
+    },
+  },
+  "required": [
+    "profile",
+    "address",
+    "publisherRegistered",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_verify_install > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Verify Install",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_verify_install > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_verify_install > output schema 1`] = `null`;
+
+exports[`tool schema snapshots > zentrixpay_wallet_balances > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Wallet Balances",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_wallet_balances > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_wallet_balances > output schema 1`] = `
+{
+  "properties": {
+    "agents": {
+      "items": {
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null",
+            ],
+          },
+          "address": {
+            "type": "string",
+          },
+          "note": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "publisherRegistered": {
+            "type": [
+              "boolean",
+              "null",
+            ],
+          },
+          "usdcBalance": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "usdcStatus": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "xlmAvailable": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "xlmBalance": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+          "xlmReserve": {
+            "type": [
+              "string",
+              "null",
+            ],
+          },
+        },
+        "required": [
+          "profile",
+          "address",
+          "active",
+          "publisherRegistered",
+          "xlmBalance",
+          "xlmReserve",
+          "xlmAvailable",
+          "usdcBalance",
+          "usdcStatus",
+          "note",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "count": {
+      "type": "integer",
+    },
+    "message": {
+      "type": "string",
+    },
+    "platform": {
+      "properties": {
+        "active": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "address": {
+          "type": "string",
+        },
+        "configured": {
+          "type": "boolean",
+        },
+        "note": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "publisherRegistered": {
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "usdcBalance": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "usdcStatus": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "xlmAvailable": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "xlmBalance": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "xlmReserve": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "configured",
+        "profile",
+        "address",
+        "active",
+        "publisherRegistered",
+        "xlmBalance",
+        "xlmReserve",
+        "xlmAvailable",
+        "usdcBalance",
+        "usdcStatus",
+        "note",
+      ],
+      "type": [
+        "object",
+        "null",
+      ],
+    },
+    "requestedAt": {
+      "type": "string",
+    },
+    "source": {
+      "type": "string",
+    },
+    "statistics": {
+      "properties": {
+        "totalUsdc": {
+          "type": "string",
+        },
+        "totalXlm": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "totalUsdc",
+        "totalXlm",
+      ],
+      "type": "object",
+    },
+  },
+  "required": [
+    "source",
+    "requestedAt",
+    "platform",
+    "agents",
+    "count",
+    "statistics",
+    "message",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_wallet_info > annotations 1`] = `
+{
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "readOnlyHint": true,
+  "title": "Wallet Info",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_wallet_info > input schema 1`] = `
+{
+  "properties": {},
+  "required": [],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > zentrixpay_wallet_info > output schema 1`] = `
+{
+  "properties": {
+    "address": {
+      "type": "string",
+    },
+    "note": {
+      "type": [
+        "string",
+        "null",
+      ],
+    },
+    "profile": {
+      "type": "string",
+    },
+    "publisherRegistered": {
+      "type": "boolean",
+    },
+    "usdcBalance": {
+      "type": "string",
+    },
+    "usdcStatus": {
+      "type": "string",
+    },
+    "xlmAvailable": {
+      "type": "string",
+    },
+    "xlmBalance": {
+      "type": "string",
+    },
+    "xlmReserve": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "profile",
+    "address",
+    "xlmBalance",
+    "xlmReserve",
+    "xlmAvailable",
+    "usdcBalance",
+    "usdcStatus",
+    "publisherRegistered",
+    "note",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`tool schema snapshots > the covered tool names are pinned 1`] = `
+[
+  "zentrixpay_backup_state",
+  "zentrixpay_check_state_permissions",
+  "zentrixpay_debug_bundle",
+  "zentrixpay_export_receipts",
+  "zentrixpay_import_wallet",
+  "zentrixpay_list_profiles",
+  "zentrixpay_mainnet_banner",
+  "zentrixpay_metrics",
+  "zentrixpay_network_profile",
+  "zentrixpay_purchase_history",
+  "zentrixpay_register",
+  "zentrixpay_repair_sponsored_account",
+  "zentrixpay_reset",
+  "zentrixpay_restore_state",
+  "zentrixpay_rotate_publisher_key",
+  "zentrixpay_server_endpoints",
+  "zentrixpay_setup_wallet",
+  "zentrixpay_switch_network_profile",
+  "zentrixpay_tx_status",
+  "zentrixpay_use_profile",
+  "zentrixpay_verify_install",
+  "zentrixpay_wallet_balances",
+  "zentrixpay_wallet_info",
+]
+`;

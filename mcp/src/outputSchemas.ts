@@ -770,23 +770,16 @@ export const TEXT_ONLY_TOOLS = [
   "zentrixpay_my_apis",
   "zentrixpay_api_stats",
   "zentrixpay_repair_sponsored_account",
-  "zentrixpay_terms",
-  "zentrixpay_check_bindings",
   "zentrixpay_reset",
   "zentrixpay_backup_state",
   "zentrixpay_restore_state",
   "zentrixpay_verify_install",
-  "zentrixpay_registry_health",
   "zentrixpay_check_state_permissions",
   "zentrixpay_register",
   "zentrixpay_rotate_publisher_key",
-  "zentrixpay_set_tags",
-  "zentrixpay_prewarm_catalog",
   "zentrixpay_client_config",
   "zentrixpay_mainnet_banner",
   "zentrixpay_switch_network_profile",
-  "zentrixpay_resource_provenance",
-  "zentrixpay_resource_change_log",
 ] as const;
 
 /** Output schema for zentrixpay_pending_transfer. */

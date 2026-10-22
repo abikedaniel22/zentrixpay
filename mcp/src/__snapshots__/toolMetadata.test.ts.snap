@@ -1,0 +1,36 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MCP tool metadata > exposes the expected tool surface 1`] = `
+[
+  "zentrixpay_list_apis",
+  "zentrixpay_api_info",
+  "zentrixpay_call",
+  "zentrixpay_register_api",
+  "zentrixpay_update_api",
+  "zentrixpay_verify_api_ownership",
+  "zentrixpay_my_apis",
+  "zentrixpay_api_stats",
+  "zentrixpay_setup_wallet",
+  "zentrixpay_wallet_info",
+  "zentrixpay_repair_sponsored_account",
+  "zentrixpay_use_profile",
+  "zentrixpay_list_profiles",
+  "zentrixpay_switch_network_profile",
+  "zentrixpay_register",
+  "zentrixpay_export_receipts",
+  "zentrixpay_network_profile",
+  "zentrixpay_tx_status",
+  "zentrixpay_reset",
+  "zentrixpay_backup_state",
+  "zentrixpay_restore_state",
+  "zentrixpay_metrics",
+  "zentrixpay_check_state_permissions",
+  "zentrixpay_client_config",
+  "zentrixpay_mainnet_banner",
+  "zentrixpay_import_wallet",
+  "zentrixpay_rotate_publisher_key",
+  "zentrixpay_verify_install",
+  "zentrixpay_debug_bundle",
+  "zentrixpay_purchase_history",
+]
+`;

@@ -68,10 +68,6 @@ const POLICIES: readonly PaidConfirmationPolicy[] = ["off", "usdc", "all"];
  */
 export const USDC_SPENDING_TOOLS = [
   "zentrixpay_call",
-  "zentrixpay_publish",
-  "zentrixpay_publish_batch",
-  "zentrixpay_buy",
-  "zentrixpay_buy_lease",
 ] as const;
 
 /**
@@ -85,13 +81,6 @@ export const USDC_SPENDING_TOOLS = [
  * nothing.
  */
 export const FEE_SPENDING_TOOLS = [
-  "zentrixpay_register_onchain",
-  "zentrixpay_update_metadata",
-  "zentrixpay_set_price",
-  "zentrixpay_transfer_ownership",
-  "zentrixpay_set_listed",
-  "zentrixpay_freeze",
-  "zentrixpay_royalty",
 ] as const;
 
 /** What a tool spends, or `null` when it spends nothing. */

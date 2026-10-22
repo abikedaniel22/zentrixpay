@@ -38,8 +38,6 @@ export const STATE_SERIALIZED_TOOLS: ReadonlySet<string> = new Set([
   "zentrixpay_register",
   "zentrixpay_rotate_publisher_key",
   // Spend credentials read from the profile store.
-  "zentrixpay_publish",
-  "zentrixpay_buy",
 ]);
 
 /** True when `name` must hold the state mutex for its whole dispatch. */

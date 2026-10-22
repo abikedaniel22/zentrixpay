@@ -4,19 +4,10 @@
     "subtitle": "Pay-per-call APIs. One HTTP call, one USDC payment on Stellar — no accounts, no subscriptions.",
     "tab_browse": "Browse APIs",
     "tab_provide": "Sell your API",
-    "tab_catalog": "Catalog",
-    "tab_purchases": "Purchases",
-    "tab_leaderboard": "Leaderboard",
-    "tab_agent": "Agent",
-    "tab_dashboard": "Dashboard",
-    "tab_analytics": "My Analytics",
-    "publish": "Publish",
     "theme_light": "Light",
     "theme_dark": "Dark",
     "theme_toggle_label": "Toggle light/dark theme",
-    "skip_to_main": "Skip to main content",
-    "registry_unavailable": "Registry status unavailable",
-    "registry_count": "Registry: {{count}} resource(s) registered on-chain"
+    "skip_to_main": "Skip to main content"
   },
   "catalog": {
     "heading": "APIs you can call",
@@ -24,19 +15,9 @@
     "search_label": "Search APIs",
     "empty_no_apis": "No APIs are listed yet.",
     "empty_no_match": "No APIs match \"{{query}}\".",
-    "empty_title": "The catalog is empty",
-    "empty_description": "No resources have been published yet. Be the first to share yours with the world.",
-    "publish_cta": "Publish a resource",
-    "no_matches": "No resources match your filters.",
-    "clear_filters": "Clear filters",
-    "preview": "Preview",
-    "buy": "Buy",
     "copy_url": "Copy URL",
     "try_it": "Try it",
     "per_call": "/ call",
-    "owner": "Owner",
-    "copied_toast": "Resource URL copied to clipboard",
-    "clipboard_fallback": "Clipboard unavailable — copy the URL below:",
     "copied_to_clipboard": "Copied to clipboard",
     "copy_this_url": "Copy this URL:"
   },
@@ -133,14 +114,6 @@
     "unlisted_description": "This API exists but is not currently listed.",
     "loading": "Loading…",
     "error": "Failed to load API details."
-  },
-  "leaderboard": {
-    "title": "Creator Leaderboard",
-    "description": "Top creators ranked by total USDC earned"
-  },
-  "agent": {
-    "title": "Verification Agent",
-    "description": "Live stats and activity for the ZentrixPay originality-verification agent"
   },
   "error_boundary": {
     "title": "Something went wrong",

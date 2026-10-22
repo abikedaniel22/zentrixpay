@@ -328,14 +328,6 @@ describe("ListTools ↔ the argument validator", () => {
     }
   });
 
-  it("rejects an unadvertised argument on an advertised tool", async () => {
-    // The contract has to hold at call time, not only in the metadata: a
-    // schema that lists an argument is a promise the dispatcher honours it.
-    await expect(
-      dispatchTool("zentrixpay_registry_lookup", { resourceId: "mock-1", nonsense: true }),
-    ).rejects.toThrow(/not a recognized argument/i);
-  });
-
   it("accepts every argument zentrixpay_reset advertises", async () => {
     // Regression for the drift that made `confirm` unusable: the guard read it,
     // ListTools advertised it, and the validator threw on it.

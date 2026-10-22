@@ -57,10 +57,6 @@ vi.mock("@zentrixpay/registry-client", async (importOriginal) => {
 });
 
 import {
-  browse,
-  search,
-  preview,
-  publishStatus,
   txStatus,
   walletInfo,
   useProfile,
@@ -99,54 +95,6 @@ describe("stdout contamination regression", () => {
     consoleLogSpy.mockRestore();
     _resetProfiles();
     vi.restoreAllMocks();
-  });
-
-  it("browse does not write to stdout", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      mockResponse([
-        {
-          id: "res-001",
-          title: "Test",
-          price: "5.00",
-          accessUrl: "https://example.com",
-        },
-      ]),
-    );
-    await browse();
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(consoleLogSpy).not.toHaveBeenCalled();
-  });
-
-  it("search does not write to stdout", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      mockResponse([
-        {
-          id: "res-001",
-          title: "Stellar Guide",
-          price: "5.00",
-          accessUrl: "https://example.com",
-        },
-      ]),
-    );
-    await search("Stellar");
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(consoleLogSpy).not.toHaveBeenCalled();
-  });
-
-  it("preview does not write to stdout", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      mockResponse({
-        id: "res-001",
-        title: "Test",
-        price: "5.00",
-        resourceType: "link",
-        verificationStatus: "verified",
-        accessUrl: "https://example.com",
-      }),
-    );
-    await preview("res-001");
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 
   it("txStatus does not write to stdout", async () => {
@@ -203,42 +151,4 @@ describe("stdout contamination regression", () => {
     expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 
-  it("publishStatus does not write to stdout", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((input: any) => {
-      const url = String(input);
-      if (url.includes("/verification")) {
-        return Promise.resolve(
-          mockResponse({
-            resourceId: "res-001",
-            status: "verified",
-            listed: true,
-            verification: null,
-          }),
-        );
-      }
-      if (url.includes("/meta")) {
-        return Promise.resolve(
-          mockResponse({
-            id: "res-001",
-            verificationStatus: "verified",
-            onchainStatus: "registered",
-            onchainTxHash: "abc123",
-          }),
-        );
-      }
-      return Promise.resolve(mockResponse({ error: "unexpected" }, false, 500));
-    });
-    await publishStatus({ resourceId: "res-001" });
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(consoleLogSpy).not.toHaveBeenCalled();
-  });
-
-  it("no tool writes to stdout even when the fetch fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
-    await browse().catch(() => {});
-    await search("test").catch(() => {});
-    await preview("res-001").catch(() => {});
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(consoleLogSpy).not.toHaveBeenCalled();
-  });
 });

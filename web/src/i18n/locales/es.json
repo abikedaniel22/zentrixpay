@@ -4,19 +4,10 @@
     "subtitle": "APIs de pago por llamada. Una solicitud HTTP, un pago USDC en Stellar — sin cuentas, sin suscripciones.",
     "tab_browse": "Explorar APIs",
     "tab_provide": "Vender tu API",
-    "tab_catalog": "Catálogo",
-    "tab_purchases": "Compras",
-    "tab_leaderboard": "Clasificación",
-    "tab_agent": "Agente",
-    "tab_dashboard": "Panel",
-    "tab_analytics": "Mis Analíticas",
-    "publish": "Publicar",
     "theme_light": "Claro",
     "theme_dark": "Oscuro",
     "theme_toggle_label": "Cambiar tema claro/oscuro",
-    "skip_to_main": "Ir al contenido principal",
-    "registry_unavailable": "Estado del registro no disponible",
-    "registry_count": "Registro: {{count}} recurso(s) registrados en cadena"
+    "skip_to_main": "Ir al contenido principal"
   },
   "catalog": {
     "heading": "APIs disponibles",
@@ -24,19 +15,9 @@
     "search_label": "Buscar APIs",
     "empty_no_apis": "No hay APIs publicadas aún.",
     "empty_no_match": "No hay APIs que coincidan con \"{{query}}\".",
-    "empty_title": "El catálogo está vacío",
-    "empty_description": "Aún no se han publicado recursos. Sea el primero en compartir los suyos con el mundo.",
-    "publish_cta": "Publicar un recurso",
-    "no_matches": "Ningún recurso coincide con sus filtros.",
-    "clear_filters": "Limpiar filtros",
-    "preview": "Vista previa",
-    "buy": "Comprar",
     "copy_url": "Copiar URL",
     "try_it": "Probar",
     "per_call": "/ llamada",
-    "owner": "Propietario",
-    "copied_toast": "URL del recurso copiada al portapapeles",
-    "clipboard_fallback": "Portapapeles no disponible — copie la URL a continuación:",
     "copied_to_clipboard": "Copiado al portapapeles",
     "copy_this_url": "Copie esta URL:"
   },
@@ -133,14 +114,6 @@
     "unlisted_description": "Esta API existe pero no está publicada actualmente.",
     "loading": "Cargando…",
     "error": "Error al cargar los detalles de la API."
-  },
-  "leaderboard": {
-    "title": "Clasificación de Creadores",
-    "description": "Los mejores creadores clasificados por USDC ganado"
-  },
-  "agent": {
-    "title": "Agente de Verificación",
-    "description": "Estadísticas en vivo y actividad del agente de verificación de originalidad de ZentrixPay"
   },
   "error_boundary": {
     "title": "Algo salió mal",
