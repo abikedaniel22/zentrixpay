@@ -10,6 +10,19 @@ jobs:
   node-ci:
     name: Typecheck, build, lint, and tests
     runs-on: ubuntu-latest
+    # Scratch database for the server's *.pg.test.ts integration tests.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -24,6 +37,8 @@ jobs:
       - run: pnpm --filter @zentrixpay/server typecheck
       - run: pnpm --filter @zentrixpay/server build
       - run: pnpm --filter @zentrixpay/server test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       - run: pnpm --filter @zentrixpay/web typecheck
       - run: pnpm --filter @zentrixpay/web build
       - run: pnpm --filter @zentrixpay/web test

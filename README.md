@@ -51,3 +51,8 @@ After enabling Corepack or installing pnpm, re-run `pnpm install` so the hooks a
 5. Open a pull request.
 
 If you run into issues with the Git hooks, make sure `pnpm` (or `npx`) is available on your `PATH` and that you have run `pnpm install` after cloning.
+
+## Handsoff notes
+
+<!-- handsoff-issue-22 -->
+- #22: MCP: zentrixpay_wallet_balances is validated but never advertised

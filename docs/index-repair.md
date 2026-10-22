@@ -104,11 +104,59 @@ pub fn repair_index(env: Env, ids: Vec<String>) -> Result<(), Error>
   can't reconstruct it (though `get(id)` still works if the id string itself
   is known).
 - It does not repair the separate `CreatorResources`/`CreatorCount` index
-  that backs `list_by_creator`/`creator_resource_count`. If that drifts
-  independently, it would need its own repair method following the same
-  pattern (admin-gated, authoritative id list, no `Resource` writes) — left
-  as a follow-up since nothing currently exercises a path that could corrupt
-  it.
+  that backs `list_by_creator`/`creator_resource_count`. That index has its
+  own method, `repair_creator_index` (below).
+
+## Creator-resource indexes (`repair_creator_index`)
+
+`list_by_creator`, `list_by_creator_page`, `creator_resource_count` and
+`creator_listed_count` read three derived keys per creator, maintained
+incrementally by `register`, transfers, and `tombstone_resource`:
+
+- `CreatorResources(creator) -> Vec<String>` — the creator's ids, in order,
+- `CreatorCount(creator) -> u32`,
+- `CreatorListedCount(creator) -> u32`.
+
+They can drift in the same ways as `Index`/`Count`, and the contract still
+cannot enumerate storage to find "every resource owned by X". So the repair
+follows the same pattern as `repair_index`:
+
+```rust
+pub fn repair_creator_index(env: Env, creator: Address, ids: Vec<String>) -> Result<(), Error>
+```
+
+- **Authorization**: admin-only (`AdminNotSet` before an admin exists), and
+  rejected with `ContractPaused` while the registry is paused. A creator
+  cannot repair their own index.
+- **Input**: the authoritative ordered list of `creator`'s live resource ids,
+  sourced off-chain (replay of `register`/`transfer`/`accept_transfer`/
+  `lifecycle` tombstone events, or the DB cross-checked by `pnpm reconcile`).
+- **Validation against canonical data**, over the whole list before any write
+  (a rejected call changes nothing):
+  - every id must exist as a `Resource` (`NotFound`),
+  - its canonical `Resource.creator` must equal `creator` and it must not be
+    tombstoned — tombstoning removes a resource from its creator's index, so a
+    tombstoned id is not one of the creator's resources (`NotFound`),
+  - no duplicates (`DuplicateInRepair`).
+
+  No new error codes were added: the error enum is at the protocol's 50-case
+  limit (see `contract/README.md`, "Error budget").
+- **Effect**: `CreatorResources(creator)` is set to the list,
+  `CreatorCount(creator)` to its length, and `CreatorListedCount(creator)` to
+  the number of listed resources in it, recomputed from each resource's state
+  rather than trusted from the old counter. `Resource` entries are only read.
+  The global `Index`/`Count`/`ListedCount` are untouched. An empty list is
+  valid and clears the creator's indexes (for a creator whose index points at
+  resources they no longer own).
+- **Events**: `("recrtidx", creator) -> CreatorIndexRepair { creator,
+  old_count, new_count, listed_count }`, so audit tooling sees which creator
+  was repaired and how far the count moved.
+- **Idempotent**: re-running with the same list writes the same values; the
+  second event reports `old_count == new_count`.
+
+What it cannot check: that the list is *complete*. An id the operator leaves
+out drops out of `list_by_creator` (it stays readable through `get`), and
+running another repair with the full list restores it.
 
 ## Tests
 
@@ -118,3 +166,10 @@ rebuilding from an authoritative list (including dropping an id from the
 index while it stays readable via `get`), rejecting an unknown id with no
 partial write, rejecting duplicate ids, requiring an admin first, and
 re-running the current list as a safe no-op.
+
+See `repair_creator_index_*` tests in
+[`contract/contracts/vault-registry/src/test/creator_index_repair.rs`](../contract/contracts/vault-registry/src/test/creator_index_repair.rs):
+rebuilding drifted creator indexes (including the recomputed listed count),
+rejecting unknown, foreign-owned, transferred-away and tombstoned ids and
+duplicates with no partial write, admin-only access, the paused guard, the
+`recrtidx` event, and idempotent re-runs.

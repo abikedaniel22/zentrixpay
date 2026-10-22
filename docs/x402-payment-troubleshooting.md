@@ -177,5 +177,5 @@ Compare DB/on-chain state with the reconciliation script: `pnpm --filter server 
 ## Still stuck?
 
 1. Reproduce with a minimal x402 client (`pnpm --filter server e2e`).
-2. Check `/health/ready` for dependency failures.
+2. Check `/health/ready` for dependency failures. Failed checks report a stable code (`database_unavailable`, `soroban_rpc_unavailable`); the underlying error is only in server logs under `event: "readiness_probe_failed"`.
 3. Open a GitHub issue with: network, endpoint, HTTP status, whether browser or agent, and the payer G-address (never post secret keys).

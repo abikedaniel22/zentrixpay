@@ -40,7 +40,13 @@ vi.mock("../db/client.js", () => ({
 }));
 
 vi.mock("../config.js", () => ({
-  config: { BASE_URL: "http://localhost:4021" },
+  config: {
+    BASE_URL: "http://localhost:4021",
+    // High enough that the registration limiter never trips in these tests;
+    // limiter behaviour is covered in publishers.rateLimit.test.ts.
+    RATE_LIMIT_REGISTER_IP_MAX: 1000,
+    RATE_LIMIT_REGISTER_IP_WINDOW_MS: 60_000,
+  },
 }));
 
 const { mockRegisterPublisher } = vi.hoisted(() => ({

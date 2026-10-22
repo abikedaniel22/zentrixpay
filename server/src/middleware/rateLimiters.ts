@@ -24,3 +24,12 @@ export const publishWalletRateLimit: RequestHandler = createWalletRateLimiter(
   (req) => req.publisher?.walletAddress,
   "publish_wallet",
 );
+
+// Public publisher registration: each call mints an API key, so cap it per IP.
+export const registerIpRateLimit: RequestHandler = createIpRateLimiter(
+  store,
+  "register",
+  config.RATE_LIMIT_REGISTER_IP_MAX,
+  config.RATE_LIMIT_REGISTER_IP_WINDOW_MS,
+  "register_ip",
+);

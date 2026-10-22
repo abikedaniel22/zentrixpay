@@ -1,743 +1,946 @@
-import { OpenAPIV3 } from 'openapi-types';
+/**
+ * OpenAPI 3.0 document for the pay-per-call gateway, served at /openapi.json
+ * and rendered by Swagger UI at /docs.
+ *
+ * Covers the public API catalog, publisher registration and API management,
+ * usage statistics, payer receipts and the x402-metered proxy. Keep it in step
+ * with routes/apis.ts and routes/publishers.ts — openapi.test.ts checks that
+ * the key routes are present.
+ */
 
-export const openApiSpec: OpenAPIV3.Document = {
-  openapi: '3.0.3',
-  info: {
-    title: 'ZentrixPay Gateway API',
-    version: '1.0.0',
+type Json = Record<string, unknown>;
+
+export interface OpenApiDocument {
+  openapi: string;
+  info: { title: string; version: string; description?: string };
+  servers?: Array<{ url: string; description?: string }>;
+  tags?: Array<{ name: string; description?: string }>;
+  components: {
+    securitySchemes: Record<string, Json>;
+    schemas: Record<string, Json>;
+    parameters: Record<string, Json>;
+    headers: Record<string, Json>;
+    responses: Record<string, Json>;
+  };
+  paths: Record<string, Record<string, Json | Json[]>>;
+}
+
+const ref = (kind: string, name: string) => ({ $ref: `#/components/${kind}/${name}` });
+const schemaRef = (name: string) => ref("schemas", name);
+const responseRef = (name: string) => ref("responses", name);
+const paramRef = (name: string) => ref("parameters", name);
+const headerRef = (name: string) => ref("headers", name);
+
+const json = (schema: Json) => ({ "application/json": { schema } });
+
+const usdcAmount = {
+  type: "string",
+  pattern: "^\\d+(\\.\\d{1,7})?$",
+  description: "USDC amount as a decimal string (up to 7 decimal places).",
+  example: "0.01",
+};
+
+const stellarAddress = {
+  type: "string",
+  pattern: "^G[A-Z2-7]{55}$",
+  description: "Stellar public key (G...).",
+  example: "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+};
+
+const PROXY_METHODS = ["get", "post", "put", "patch", "delete"] as const;
+
+const rateLimitHeaders = {
+  "RateLimit-Limit": headerRef("RateLimitLimit"),
+  "RateLimit-Remaining": headerRef("RateLimitRemaining"),
+  "RateLimit-Reset": headerRef("RateLimitReset"),
+};
+
+/** One proxied HTTP method on /api/{id} or /api/{id}/{path}. */
+function proxyOperation(method: (typeof PROXY_METHODS)[number], withPath: boolean): Json {
+  const upper = method.toUpperCase();
+  const hasBody = method !== "get" && method !== "delete";
+  return {
+    tags: ["Proxy"],
+    summary: `Paid ${upper} call${withPath ? " to an upstream path" : ""}`,
     description:
-      'ZentrixPay is a pay-per-call API gateway. Providers register and publish APIs, ' +
-      'consumers discover them through the catalog, and every proxied call is metered ' +
-      'and billed through the x402 payment protocol. This document describes the ' +
-      'gateway management routes under /apis, /publishers and the metered proxy route ' +
-      'under /api/:id.',
+      `Forwards one ${upper} request to the provider's upstream API, metered with x402. ` +
+      "Without a valid payment the gateway answers 402 with a PAYMENT-REQUIRED header " +
+      "describing what to pay (price in USDC on Stellar, payee wallet, network). Retry the " +
+      "same request with the signed payment in the PAYMENT-SIGNATURE (or legacy X-PAYMENT) " +
+      "header; on success the upstream response is returned with a PAYMENT-RESPONSE header " +
+      "carrying the settlement receipt. Callers are only charged when the final status is " +
+      "below 400, and are never charged for upstream failures (502/504). An active access " +
+      "pass or the provider's daily free-call allowance skips the payment step. The method " +
+      "must be one of the API's allowedMethods, otherwise 405 is returned.",
+    operationId: `proxy${upper[0]}${upper.slice(1).toLowerCase()}${withPath ? "Path" : ""}`,
+    security: [{}, { X402Payment: [] }],
+    parameters: [paramRef("IdempotencyKey")],
+    ...(hasBody
+      ? {
+          requestBody: {
+            required: false,
+            description: "Forwarded to the upstream unchanged (any content type).",
+            content: { "*/*": { schema: { type: "string", format: "binary" } } },
+          },
+        }
+      : {}),
+    responses: {
+      "200": {
+        description:
+          "The upstream response (status, headers and body are passed through; any status " +
+          "below 400 is a charged call).",
+        headers: {
+          "PAYMENT-RESPONSE": headerRef("PaymentResponse"),
+          "Idempotent-Replayed": headerRef("IdempotentReplayed"),
+        },
+        content: { "*/*": { schema: { type: "string", format: "binary" } } },
+      },
+      "400": responseRef("BadRequest"),
+      "402": responseRef("PaymentRequired"),
+      "404": responseRef("NotFound"),
+      "405": responseRef("MethodNotAllowed"),
+      "409": responseRef("IdempotencyConflict"),
+      "422": responseRef("IdempotencyMismatch"),
+      "429": responseRef("TooManyRequests"),
+      "502": responseRef("UpstreamFailed"),
+      "504": responseRef("UpstreamTimeout"),
+    },
+  };
+}
+
+function proxyPathItem(withPath: boolean) {
+  const item: Record<string, Json | Json[]> = {
+    parameters: withPath
+      ? [paramRef("ApiId"), paramRef("UpstreamPath")]
+      : [paramRef("ApiId")],
+  };
+  for (const m of PROXY_METHODS) item[m] = proxyOperation(m, withPath);
+  return item;
+}
+
+export const openApiSpec: OpenApiDocument = {
+  openapi: "3.0.3",
+  info: {
+    title: "ZentrixPay Gateway API",
+    version: "1.0.0",
+    description:
+      "ZentrixPay is a pay-per-call API gateway. Providers register as publishers, add " +
+      "their HTTP APIs with a per-call price in USDC, and get a proxy URL. Callers discover " +
+      "APIs in the public catalog and pay for each call through the x402 protocol, settled " +
+      "on Stellar.\n\n" +
+      "**Authentication.** Publisher routes take the `x-api-key` header returned once by " +
+      "`POST /publishers`. When the server enables request signatures, mutating publisher " +
+      "routes also need `X-Timestamp` and `X-Signature` (HMAC-SHA256).\n\n" +
+      "**Pagination.** List endpoints use `limit` / `offset` query parameters.\n\n" +
+      "**Errors.** Errors are JSON objects with an `error` field. Validation errors (400) " +
+      "carry the field-by-field validation result in `error`.",
   },
-  servers: [
-    {
-      url: '/',
-      description: 'Current server',
-    },
-  ],
+  servers: [{ url: "/", description: "Current server" }],
   tags: [
-    {
-      name: 'Catalog',
-      description: 'Discover and inspect published APIs.',
-    },
-    {
-      name: 'APIs',
-      description: 'Create, update and manage published APIs.',
-    },
-    {
-      name: 'Publishers',
-      description: 'Publisher registration and publisher-scoped API listings.',
-    },
-    {
-      name: 'Proxy',
-      description: 'Metered proxy route that forwards requests to the upstream provider.',
-    },
+    { name: "Catalog", description: "Discover listed APIs (public)." },
+    { name: "Publishers", description: "Publisher registration." },
+    { name: "API management", description: "Create and manage your APIs (publisher)." },
+    { name: "Statistics", description: "Usage, revenue and payer receipts." },
+    { name: "Proxy", description: "x402-metered calls to a provider's API." },
   ],
   components: {
     securitySchemes: {
       ApiKeyAuth: {
-        type: 'apiKey',
-        in: 'header',
-        name: 'x-api-key',
+        type: "apiKey",
+        in: "header",
+        name: "x-api-key",
+        description: "Publisher API key, shown once by POST /publishers.",
+      },
+      X402Payment: {
+        type: "apiKey",
+        in: "header",
+        name: "PAYMENT-SIGNATURE",
         description:
-          'Publisher API key. Required for provider routes that create or mutate APIs ' +
-          'and for publisher-scoped listings.',
+          "Base64 x402 payment payload answering a 402 challenge. The legacy X-PAYMENT " +
+          "header is also accepted.",
       },
     },
+    parameters: {
+      ApiId: {
+        name: "id",
+        in: "path",
+        required: true,
+        description: "API identifier.",
+        schema: { type: "string" },
+      },
+      UpstreamPath: {
+        name: "path",
+        in: "path",
+        required: true,
+        description:
+          "Path appended to the API's upstream URL (may contain several segments). The query " +
+          "string is forwarded too. `.` / `..` segments are rejected.",
+        schema: { type: "string" },
+      },
+      Limit: {
+        name: "limit",
+        in: "query",
+        required: false,
+        description: "Page size.",
+        schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+      },
+      Offset: {
+        name: "offset",
+        in: "query",
+        required: false,
+        description: "Number of items to skip.",
+        schema: { type: "integer", minimum: 0, default: 0 },
+      },
+      IdempotencyKey: {
+        name: "Idempotency-Key",
+        in: "header",
+        required: false,
+        description:
+          "Optional key (max 255 chars), scoped per API and payer wallet. Retrying a charged " +
+          "call with the same key and payment replays the stored response instead of calling " +
+          "the upstream again.",
+        schema: { type: "string", maxLength: 255 },
+      },
+      RequestTimestamp: {
+        name: "X-Timestamp",
+        in: "header",
+        required: false,
+        description: "Unix time in ms. Required when request signatures are enabled.",
+        schema: { type: "string" },
+      },
+      RequestSignature: {
+        name: "X-Signature",
+        in: "header",
+        required: false,
+        description:
+          "HMAC-SHA256 request signature. Required when request signatures are enabled.",
+        schema: { type: "string" },
+      },
+    },
+    headers: {
+      PaymentRequired: {
+        description: "Base64-encoded x402 payment requirements (price, payee, network, asset).",
+        schema: { type: "string" },
+      },
+      PaymentResponse: {
+        description: "Base64-encoded x402 settlement receipt, including the transaction hash.",
+        schema: { type: "string" },
+      },
+      IdempotentReplayed: {
+        description: "`true` when the response was replayed for a repeated Idempotency-Key.",
+        schema: { type: "string", enum: ["true"] },
+      },
+      RateLimitLimit: { description: "Requests allowed per window.", schema: { type: "integer" } },
+      RateLimitRemaining: {
+        description: "Requests left in the current window.",
+        schema: { type: "integer" },
+      },
+      RateLimitReset: {
+        description: "Unix time (seconds) when the window frees up.",
+        schema: { type: "integer" },
+      },
+      RetryAfter: { description: "Seconds to wait before retrying.", schema: { type: "integer" } },
+    },
     schemas: {
-      Api: {
-        type: 'object',
-        description: 'A published API available through the gateway.',
-        properties: {
-          id: {
-            type: 'string',
-            description: 'Unique identifier of the API.',
-          },
-          name: {
-            type: 'string',
-            description: 'Human readable name of the API.',
-          },
-          description: {
-            type: 'string',
-            description: 'Description of what the API does.',
-          },
-          baseUrl: {
-            type: 'string',
-            format: 'uri',
-            description: 'Upstream base URL the gateway proxies requests to.',
-          },
-          price: {
-            type: 'number',
-            description: 'Price per call, expressed in the gateway currency.',
-          },
-          currency: {
-            type: 'string',
-            description: 'Currency used for the per-call price.',
-          },
-          publisherId: {
-            type: 'string',
-            description: 'Identifier of the publisher that owns the API.',
-          },
-          verified: {
-            type: 'boolean',
-            description: 'Whether ownership of the API has been verified.',
-          },
-          tags: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Free-form tags used for catalog filtering.',
-          },
-          createdAt: {
-            type: 'string',
-            format: 'date-time',
-            description: 'Creation timestamp.',
-          },
-          updatedAt: {
-            type: 'string',
-            format: 'date-time',
-            description: 'Last update timestamp.',
-          },
-        },
-        required: ['id', 'name', 'baseUrl', 'price', 'publisherId'],
-      },
-      ApiList: {
-        type: 'object',
-        description: 'Paginated list of APIs.',
-        properties: {
-          items: {
-            type: 'array',
-            items: { $ref: '#/components/schemas/Api' },
-          },
-          total: {
-            type: 'integer',
-            description: 'Total number of APIs matching the query.',
-          },
-          limit: {
-            type: 'integer',
-            description: 'Maximum number of items returned.',
-          },
-          offset: {
-            type: 'integer',
-            description: 'Number of items skipped.',
-          },
-        },
-        required: ['items'],
-      },
-      ApiStats: {
-        type: 'object',
-        description: 'Usage statistics for a published API.',
-        properties: {
-          apiId: {
-            type: 'string',
-            description: 'Identifier of the API these stats belong to.',
-          },
-          calls: {
-            type: 'integer',
-            description: 'Total number of proxied calls.',
-          },
-          successfulCalls: {
-            type: 'integer',
-            description: 'Number of calls that completed successfully.',
-          },
-          failedCalls: {
-            type: 'integer',
-            description: 'Number of calls that failed.',
-          },
-          revenue: {
-            type: 'number',
-            description: 'Total revenue generated by the API.',
-          },
-          currency: {
-            type: 'string',
-            description: 'Currency of the revenue figure.',
-          },
-          periodStart: {
-            type: 'string',
-            format: 'date-time',
-            description: 'Start of the reporting period.',
-          },
-          periodEnd: {
-            type: 'string',
-            format: 'date-time',
-            description: 'End of the reporting period.',
-          },
-        },
-        required: ['apiId', 'calls'],
-      },
-      Publisher: {
-        type: 'object',
-        description: 'A publisher that owns one or more APIs.',
-        properties: {
-          id: {
-            type: 'string',
-            description: 'Unique identifier of the publisher.',
-          },
-          name: {
-            type: 'string',
-            description: 'Display name of the publisher.',
-          },
-          email: {
-            type: 'string',
-            format: 'email',
-            description: 'Contact email of the publisher.',
-          },
-          walletAddress: {
-            type: 'string',
-            description: 'Wallet address used to receive payments.',
-          },
-          createdAt: {
-            type: 'string',
-            format: 'date-time',
-            description: 'Creation timestamp.',
-          },
-        },
-        required: ['id', 'name'],
-      },
-      CreateApiRequest: {
-        type: 'object',
-        description: 'Payload used to create a new API.',
-        properties: {
-          name: {
-            type: 'string',
-            description: 'Human readable name of the API.',
-          },
-          description: {
-            type: 'string',
-            description: 'Description of what the API does.',
-          },
-          baseUrl: {
-            type: 'string',
-            format: 'uri',
-            description: 'Upstream base URL the gateway proxies requests to.',
-          },
-          price: {
-            type: 'number',
-            description: 'Price per call.',
-          },
-          currency: {
-            type: 'string',
-            description: 'Currency used for the per-call price.',
-          },
-          tags: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Free-form tags used for catalog filtering.',
-          },
-        },
-        required: ['name', 'baseUrl', 'price'],
-      },
-      UpdateApiRequest: {
-        type: 'object',
-        description: 'Payload used to update an existing API. All fields are optional.',
-        properties: {
-          name: {
-            type: 'string',
-            description: 'Human readable name of the API.',
-          },
-          description: {
-            type: 'string',
-            description: 'Description of what the API does.',
-          },
-          baseUrl: {
-            type: 'string',
-            format: 'uri',
-            description: 'Upstream base URL the gateway proxies requests to.',
-          },
-          price: {
-            type: 'number',
-            description: 'Price per call.',
-          },
-          currency: {
-            type: 'string',
-            description: 'Currency used for the per-call price.',
-          },
-          tags: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Free-form tags used for catalog filtering.',
-          },
-        },
-      },
-      VerifyOwnershipRequest: {
-        type: 'object',
-        description: 'Payload used to prove ownership of an API.',
-        properties: {
-          method: {
-            type: 'string',
-            description: 'Verification method, e.g. "dns" or "file".',
-          },
-          token: {
-            type: 'string',
-            description: 'Verification token to be placed at the agreed location.',
-          },
-        },
-        required: ['method', 'token'],
-      },
-      VerifyOwnershipResponse: {
-        type: 'object',
-        description: 'Result of an ownership verification attempt.',
-        properties: {
-          apiId: {
-            type: 'string',
-            description: 'Identifier of the API that was verified.',
-          },
-          verified: {
-            type: 'boolean',
-            description: 'Whether ownership was successfully verified.',
-          },
-          message: {
-            type: 'string',
-            description: 'Human readable explanation of the result.',
-          },
-        },
-        required: ['apiId', 'verified'],
-      },
-      CreatePublisherRequest: {
-        type: 'object',
-        description: 'Payload used to register a new publisher.',
-        properties: {
-          name: {
-            type: 'string',
-            description: 'Display name of the publisher.',
-          },
-          email: {
-            type: 'string',
-            format: 'email',
-            description: 'Contact email of the publisher.',
-          },
-          walletAddress: {
-            type: 'string',
-            description: 'Wallet address used to receive payments.',
-          },
-        },
-        required: ['name'],
-      },
       Error: {
-        type: 'object',
-        description: 'Standard error response.',
+        type: "object",
+        required: ["error"],
         properties: {
           error: {
-            type: 'string',
-            description: 'Machine readable error code.',
-          },
-          message: {
-            type: 'string',
-            description: 'Human readable error message.',
+            description: "Error message, or the validation result for 400 responses.",
+            oneOf: [{ type: "string" }, { type: "object", additionalProperties: true }],
           },
         },
-        required: ['error'],
+      },
+      RateLimitError: {
+        type: "object",
+        required: ["error", "code", "retryAfterSeconds"],
+        properties: {
+          error: { type: "string", example: "Too many requests" },
+          code: { type: "string", enum: ["RATE_LIMITED"] },
+          retryAfterSeconds: { type: "integer" },
+        },
+      },
+      UpstreamError: {
+        type: "object",
+        required: ["error", "reason"],
+        properties: {
+          error: { type: "string", enum: ["upstream_failed"] },
+          reason: { type: "string", enum: ["blocked", "network", "too_large", "timeout"] },
+        },
+      },
+      HttpMethod: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+      PublicApi: {
+        type: "object",
+        description: "What anyone can see about a listed API.",
+        required: [
+          "id",
+          "name",
+          "price",
+          "currency",
+          "walletAddress",
+          "allowedMethods",
+          "tags",
+          "proxyUrl",
+          "onchain",
+          "createdAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string", nullable: true },
+          price: { ...usdcAmount, description: "Price per call in USDC." },
+          currency: { type: "string", enum: ["USDC"] },
+          walletAddress: { ...stellarAddress, description: "Payee wallet." },
+          allowedMethods: { type: "array", items: schemaRef("HttpMethod") },
+          tags: { type: "array", items: { type: "string" } },
+          passPrice: {
+            ...usdcAmount,
+            nullable: true,
+            description: "Price of a 1-hour access pass, or null if passes are not offered.",
+          },
+          freeCallsPerDay: {
+            type: "integer",
+            description: "Free calls per payer per UTC day before payment is required.",
+          },
+          proxyUrl: {
+            type: "string",
+            format: "uri",
+            description: "Call this URL (plus any upstream path) to use the API.",
+          },
+          openapiUrl: {
+            type: "string",
+            format: "uri",
+            nullable: true,
+            description: "The API's own OpenAPI document, if the provider uploaded one.",
+          },
+          onchain: {
+            type: "object",
+            properties: {
+              registered: { type: "boolean" },
+              contractId: { type: "string", nullable: true },
+              txHash: { type: "string", nullable: true },
+            },
+          },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      OwnerApi: {
+        description:
+          "What the owning publisher sees. Includes the upstream URL but never secret values.",
+        allOf: [
+          schemaRef("PublicApi"),
+          {
+            type: "object",
+            properties: {
+              upstreamUrl: { type: "string", format: "uri" },
+              upstreamHeaderName: { type: "string", nullable: true },
+              hasUpstreamSecret: { type: "boolean" },
+              upstreamQueryParamName: { type: "string", nullable: true },
+              hasUpstreamQuerySecret: { type: "boolean" },
+              timeoutMs: { type: "integer", nullable: true },
+              payerAllowlist: {
+                type: "array",
+                nullable: true,
+                items: stellarAddress,
+              },
+              payerDenylist: { type: "array", items: stellarAddress },
+              listed: { type: "boolean" },
+              onchainStatus: { type: "string" },
+              ownershipVerified: { type: "boolean" },
+              ownershipVerification: {
+                type: "object",
+                description: "Serve expectedContent at url to prove you own the upstream.",
+                properties: {
+                  url: { type: "string", format: "uri" },
+                  expectedContent: { type: "string" },
+                },
+              },
+            },
+          },
+        ],
+      },
+      CreatedApi: {
+        allOf: [
+          schemaRef("OwnerApi"),
+          {
+            type: "object",
+            properties: {
+              nextStep: { type: "string", description: "What to do to get the API listed." },
+            },
+          },
+        ],
+      },
+      UpstreamHeader: {
+        type: "object",
+        required: ["name", "value"],
+        additionalProperties: false,
+        description: "Secret header added to every forwarded call. Stored encrypted.",
+        properties: {
+          name: { type: "string", example: "x-api-key" },
+          value: { type: "string", maxLength: 4096 },
+        },
+      },
+      UpstreamQueryParam: {
+        type: "object",
+        required: ["name", "value"],
+        additionalProperties: false,
+        description: "Secret query parameter added to every forwarded call. Stored encrypted.",
+        properties: {
+          name: { type: "string", maxLength: 128 },
+          value: { type: "string", maxLength: 4096 },
+        },
+      },
+      Webhook: {
+        type: "object",
+        required: ["url", "secret"],
+        additionalProperties: false,
+        description: "Receives an HMAC-SHA256 signed event for every charged call.",
+        properties: {
+          url: { type: "string", format: "uri" },
+          secret: { type: "string", minLength: 16, maxLength: 256 },
+        },
+      },
+      CreateApiRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "upstreamUrl", "price"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          description: { type: "string", maxLength: 2000 },
+          upstreamUrl: {
+            type: "string",
+            format: "uri",
+            description: "Your API's base URL. Must be public; callers never see it.",
+          },
+          price: usdcAmount,
+          walletAddress: {
+            ...stellarAddress,
+            description: "Payee wallet. Defaults to the publisher's wallet.",
+          },
+          allowedMethods: {
+            type: "array",
+            minItems: 1,
+            items: schemaRef("HttpMethod"),
+            default: ["GET"],
+          },
+          upstreamHeader: schemaRef("UpstreamHeader"),
+          upstreamQueryParam: schemaRef("UpstreamQueryParam"),
+          openapiSpec: {
+            description: "Your API's OpenAPI 3 document (JSON/YAML text or a JSON object).",
+            oneOf: [{ type: "string" }, { type: "object", additionalProperties: true }],
+          },
+          timeoutMs: { type: "integer", minimum: 1000 },
+          maxResponseBytes: { type: "integer", minimum: 1024 },
+          webhook: schemaRef("Webhook"),
+          healthPath: {
+            type: "string",
+            maxLength: 512,
+            pattern: "^/[^\\s#]*$",
+            description: "Path pinged to check the upstream is up.",
+          },
+          tags: { type: "array", maxItems: 10, items: { type: "string", maxLength: 32 } },
+          payerAllowlist: {
+            type: "array",
+            maxItems: 500,
+            items: stellarAddress,
+            description: "Only these wallets may call the API. Omit to allow everyone.",
+          },
+          payerDenylist: { type: "array", maxItems: 500, items: stellarAddress },
+        },
+      },
+      UpdateApiRequest: {
+        type: "object",
+        additionalProperties: false,
+        description:
+          "Every field is optional; send null to clear a nullable setting. Changing " +
+          "walletAddress also needs X-Payee-Timestamp and X-Payee-Signature from the current " +
+          "payee wallet.",
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          description: { type: "string", maxLength: 2000, nullable: true },
+          upstreamUrl: { type: "string", format: "uri" },
+          price: usdcAmount,
+          walletAddress: stellarAddress,
+          allowedMethods: { type: "array", minItems: 1, items: schemaRef("HttpMethod") },
+          upstreamHeader: { allOf: [schemaRef("UpstreamHeader")], nullable: true },
+          upstreamQueryParam: { allOf: [schemaRef("UpstreamQueryParam")], nullable: true },
+          openapiSpec: {
+            nullable: true,
+            oneOf: [{ type: "string" }, { type: "object", additionalProperties: true }],
+          },
+          timeoutMs: { type: "integer", minimum: 1000, nullable: true },
+          maxResponseBytes: { type: "integer", minimum: 1024, nullable: true },
+          webhook: { allOf: [schemaRef("Webhook")], nullable: true },
+          healthPath: { type: "string", maxLength: 512, nullable: true },
+          tags: { type: "array", maxItems: 10, items: { type: "string", maxLength: 32 } },
+          payerAllowlist: { type: "array", nullable: true, maxItems: 500, items: stellarAddress },
+          payerDenylist: { type: "array", maxItems: 500, items: stellarAddress },
+          listed: {
+            type: "boolean",
+            description: "List or unlist the API (listing needs verified ownership).",
+          },
+        },
+      },
+      ArchivedApi: {
+        type: "object",
+        required: ["id", "archived", "archivedAt"],
+        properties: {
+          id: { type: "string" },
+          archived: { type: "boolean", enum: [true] },
+          archivedAt: { type: "string", format: "date-time" },
+        },
+      },
+      ApiCall: {
+        type: "object",
+        description: "One proxied call.",
+        properties: {
+          id: { type: "string" },
+          apiId: { type: "string" },
+          payerAddress: { type: "string" },
+          amount: usdcAmount,
+          charged: { type: "boolean" },
+          method: schemaRef("HttpMethod"),
+          path: { type: "string" },
+          responseStatus: { type: "integer" },
+          durationMs: { type: "integer" },
+          txHash: { type: "string", nullable: true, description: "Settlement transaction." },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      ApiStats: {
+        type: "object",
+        required: ["apiId", "calls", "chargedCalls", "revenue", "currency", "recentCalls"],
+        properties: {
+          apiId: { type: "string" },
+          archivedAt: { type: "string", format: "date-time", nullable: true },
+          calls: { type: "integer", description: "All recorded calls." },
+          chargedCalls: { type: "integer" },
+          revenue: { ...usdcAmount, description: "Gross revenue from charged calls." },
+          uniquePayers: { type: "integer" },
+          avgDurationMs: { type: "integer" },
+          refundedCalls: { type: "integer" },
+          refunded: usdcAmount,
+          netRevenue: { ...usdcAmount, description: "Revenue minus refunds." },
+          currency: { type: "string", enum: ["USDC"] },
+          recentCalls: {
+            type: "array",
+            maxItems: 50,
+            description: "The 50 most recent calls, newest first.",
+            items: schemaRef("ApiCall"),
+          },
+        },
+      },
+      ApiTimeSeries: {
+        type: "object",
+        required: ["apiId", "days", "series"],
+        properties: {
+          apiId: { type: "string" },
+          days: { type: "integer", enum: [7, 30, 90] },
+          series: {
+            type: "array",
+            description: "One point per UTC day, oldest first; days without calls are zero.",
+            items: {
+              type: "object",
+              required: ["date", "calls", "revenue"],
+              properties: {
+                date: { type: "string", format: "date" },
+                calls: { type: "integer" },
+                revenue: usdcAmount,
+              },
+            },
+          },
+        },
+      },
+      PayerCalls: {
+        type: "object",
+        required: ["payer", "calls", "limit", "offset", "nextOffset"],
+        properties: {
+          payer: stellarAddress,
+          calls: { type: "array", items: schemaRef("ApiCall") },
+          limit: { type: "integer" },
+          offset: { type: "integer" },
+          nextOffset: {
+            type: "integer",
+            nullable: true,
+            description: "Offset of the next page, or null on the last page.",
+          },
+        },
+      },
+      AccessPass: {
+        type: "object",
+        required: ["passId", "expiresAt", "message"],
+        properties: {
+          passId: { type: "string" },
+          expiresAt: { type: "string", format: "date-time" },
+          message: { type: "string", enum: ["Pass activated", "Pass already active"] },
+        },
+      },
+      CreatePublisherRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "email", "walletAddress"],
+        properties: {
+          name: { type: "string" },
+          email: { type: "string", format: "email" },
+          walletAddress: { ...stellarAddress, description: "Default payout wallet." },
+        },
+      },
+      RegisteredPublisher: {
+        type: "object",
+        required: ["id", "name", "email", "walletAddress", "apiKey", "createdAt"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          email: { type: "string", format: "email" },
+          walletAddress: stellarAddress,
+          apiKey: {
+            type: "string",
+            description: "Publisher API key. Shown only once — store it securely.",
+          },
+          createdAt: { type: "string", format: "date-time" },
+        },
       },
     },
     responses: {
+      BadRequest: {
+        description: "The request failed validation.",
+        content: json(schemaRef("Error")),
+      },
       Unauthorized: {
-        description: 'Missing or invalid x-api-key.',
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/Error' },
-          },
-        },
+        description: "Missing or invalid x-api-key (or request signature).",
+        content: json(schemaRef("Error")),
+      },
+      Forbidden: {
+        description: "Payee signature missing or invalid when changing walletAddress.",
+        content: json(schemaRef("Error")),
       },
       NotFound: {
-        description: 'The requested resource was not found.',
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/Error' },
-          },
-        },
+        description: "Not found, not listed, or not owned by the caller.",
+        content: json(schemaRef("Error")),
       },
-      BadRequest: {
-        description: 'The request was malformed or failed validation.',
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/Error' },
-          },
-        },
+      Conflict: { description: "Conflict.", content: json(schemaRef("Error")) },
+      TooManyRequests: {
+        description: "Rate limit exceeded for this client IP or wallet.",
+        headers: { "Retry-After": headerRef("RetryAfter"), ...rateLimitHeaders },
+        content: json(schemaRef("RateLimitError")),
       },
       PaymentRequired: {
         description:
-          'Payment is required to complete this call. The PAYMENT-REQUIRED header ' +
-          'contains the x402 payment requirements the client must satisfy.',
-        headers: {
-          'PAYMENT-REQUIRED': {
-            description: 'Base64 encoded x402 payment requirements.',
-            schema: { type: 'string' },
-          },
-        },
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/Error' },
-          },
-        },
+          "x402 challenge: no (valid) payment was attached. Pay the amount described in the " +
+          "PAYMENT-REQUIRED header and retry with PAYMENT-SIGNATURE.",
+        headers: { "PAYMENT-REQUIRED": headerRef("PaymentRequired") },
+        content: json({ type: "object", additionalProperties: true }),
       },
       MethodNotAllowed: {
-        description: 'The HTTP method is not allowed for this API.',
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/Error' },
-          },
+        description: "The HTTP method is not in the API's allowedMethods.",
+        headers: {
+          Allow: { description: "Allowed methods.", schema: { type: "string" } },
         },
+        content: json(schemaRef("Error")),
+      },
+      IdempotencyConflict: {
+        description:
+          "The Idempotency-Key is in use by a call in progress, or was used with a different " +
+          "payment.",
+        content: json(schemaRef("Error")),
+      },
+      IdempotencyMismatch: {
+        description: "The Idempotency-Key was already used for a different request.",
+        content: json(schemaRef("Error")),
+      },
+      UpstreamFailed: {
+        description:
+          "The upstream could not be reached, was blocked, or returned too large a body. Not " +
+          "charged.",
+        content: json(schemaRef("UpstreamError")),
+      },
+      UpstreamTimeout: {
+        description: "The upstream timed out. Not charged.",
+        content: json(schemaRef("UpstreamError")),
       },
     },
   },
   paths: {
-    '/apis': {
+    "/apis": {
       get: {
-        tags: ['Catalog'],
-        summary: 'List published APIs',
-        description: 'Returns a paginated catalog of published APIs.',
-        operationId: 'listApis',
+        tags: ["Catalog"],
+        summary: "List APIs in the catalog",
+        description:
+          "Listed, non-archived APIs. Paginate with limit/offset; ordering is stable within a " +
+          "sort.",
+        operationId: "listApis",
         parameters: [
           {
-            name: 'q',
-            in: 'query',
-            required: false,
-            description: 'Free-text search query.',
-            schema: { type: 'string' },
+            name: "q",
+            in: "query",
+            description: "Case-insensitive search in name and description.",
+            schema: { type: "string", maxLength: 100 },
           },
           {
-            name: 'limit',
-            in: 'query',
-            required: false,
-            description: 'Maximum number of items to return.',
-            schema: { type: 'integer', minimum: 1, default: 20 },
+            name: "tag",
+            in: "query",
+            description: "Repeatable. An API must carry every requested tag.",
+            style: "form",
+            explode: true,
+            schema: { type: "array", maxItems: 10, items: { type: "string", maxLength: 32 } },
           },
           {
-            name: 'offset',
-            in: 'query',
-            required: false,
-            description: 'Number of items to skip.',
-            schema: { type: 'integer', minimum: 0, default: 0 },
-          },
-        ],
-        responses: {
-          '200': {
-            description: 'A paginated list of APIs.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ApiList' },
-              },
+            name: "sort",
+            in: "query",
+            description: "`popular` ranks by charged calls in the last 7 days.",
+            schema: {
+              type: "string",
+              enum: ["newest", "price_asc", "price_desc", "popular"],
+              default: "newest",
             },
           },
-          '400': { $ref: '#/components/responses/BadRequest' },
+          paramRef("Limit"),
+          paramRef("Offset"),
+        ],
+        responses: {
+          "200": {
+            description: "One page of APIs.",
+            content: json({ type: "array", items: schemaRef("PublicApi") }),
+          },
+          "400": responseRef("BadRequest"),
         },
       },
       post: {
-        tags: ['APIs'],
-        summary: 'Create a new API',
-        description: 'Registers a new API owned by the authenticated publisher.',
-        operationId: 'createApi',
+        tags: ["API management"],
+        summary: "Register an API",
+        description:
+          "Creates an unlisted API owned by the caller. Verify ownership, then list it. " +
+          "Rate-limited per IP and per publisher wallet.",
+        operationId: "createApi",
         security: [{ ApiKeyAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/CreateApiRequest' },
-            },
-          },
-        },
+        parameters: [paramRef("RequestTimestamp"), paramRef("RequestSignature")],
+        requestBody: { required: true, content: json(schemaRef("CreateApiRequest")) },
         responses: {
-          '201': {
-            description: 'The API was created.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/Api' },
-              },
-            },
+          "201": {
+            description: "The API was created.",
+            headers: rateLimitHeaders,
+            content: json(schemaRef("CreatedApi")),
           },
-          '400': { $ref: '#/components/responses/BadRequest' },
-          '401': { $ref: '#/components/responses/Unauthorized' },
+          "400": responseRef("BadRequest"),
+          "401": responseRef("Unauthorized"),
+          "429": responseRef("TooManyRequests"),
         },
       },
     },
-    '/apis/{id}': {
+    "/apis/{id}": {
+      parameters: [paramRef("ApiId")],
       get: {
-        tags: ['Catalog'],
-        summary: 'Get an API by id',
-        description: 'Returns the details of a single published API.',
-        operationId: 'getApi',
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            description: 'Identifier of the API.',
-            schema: { type: 'string' },
-          },
-        ],
+        tags: ["Catalog"],
+        summary: "Get a listed API",
+        operationId: "getApi",
         responses: {
-          '200': {
-            description: 'The requested API.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/Api' },
-              },
-            },
-          },
-          '404': { $ref: '#/components/responses/NotFound' },
+          "200": { description: "The API.", content: json(schemaRef("PublicApi")) },
+          "404": responseRef("NotFound"),
         },
       },
       patch: {
-        tags: ['APIs'],
-        summary: 'Update an API',
-        description: 'Updates an existing API owned by the authenticated publisher.',
-        operationId: 'updateApi',
+        tags: ["API management"],
+        summary: "Update an API",
+        operationId: "updateApi",
         security: [{ ApiKeyAuth: [] }],
         parameters: [
+          paramRef("RequestTimestamp"),
+          paramRef("RequestSignature"),
           {
-            name: 'id',
-            in: 'path',
-            required: true,
-            description: 'Identifier of the API.',
-            schema: { type: 'string' },
+            name: "X-Payee-Timestamp",
+            in: "header",
+            description: "Required when changing walletAddress.",
+            schema: { type: "string" },
+          },
+          {
+            name: "X-Payee-Signature",
+            in: "header",
+            description:
+              "Signature by the current payee wallet. Required when changing walletAddress.",
+            schema: { type: "string" },
           },
         ],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/UpdateApiRequest' },
-            },
-          },
-        },
+        requestBody: { required: true, content: json(schemaRef("UpdateApiRequest")) },
         responses: {
-          '200': {
-            description: 'The updated API.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/Api' },
-              },
-            },
-          },
-          '400': { $ref: '#/components/responses/BadRequest' },
-          '401': { $ref: '#/components/responses/Unauthorized' },
-          '404': { $ref: '#/components/responses/NotFound' },
-        },
-      },
-    },
-    '/apis/{id}/verify-ownership': {
-      post: {
-        tags: ['APIs'],
-        summary: 'Verify ownership of an API',
-        description:
-          'Attempts to verify that the authenticated publisher owns the upstream ' +
-          'behind the given API.',
-        operationId: 'verifyApiOwnership',
-        security: [{ ApiKeyAuth: [] }],
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            description: 'Identifier of the API.',
-            schema: { type: 'string' },
-          },
-        ],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/VerifyOwnershipRequest' },
-            },
-          },
-        },
-        responses: {
-          '200': {
-            description: 'The result of the verification attempt.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/VerifyOwnershipResponse' },
-              },
-            },
-          },
-          '400': { $ref: '#/components/responses/BadRequest' },
-          '401': { $ref: '#/components/responses/Unauthorized' },
-          '404': { $ref: '#/components/responses/NotFound' },
-        },
-      },
-    },
-    '/apis/{id}/stats': {
-      get: {
-        tags: ['APIs'],
-        summary: 'Get usage statistics for an API',
-        description: 'Returns usage and revenue statistics for the given API.',
-        operationId: 'getApiStats',
-        security: [{ ApiKeyAuth: [] }],
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            description: 'Identifier of the API.',
-            schema: { type: 'string' },
-          },
-        ],
-        responses: {
-          '200': {
-            description: 'Usage statistics for the API.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ApiStats' },
-              },
-            },
-          },
-          '401': { $ref: '#/components/responses/Unauthorized' },
-          '404': { $ref: '#/components/responses/NotFound' },
-        },
-      },
-    },
-    '/publishers': {
-      post: {
-        tags: ['Publishers'],
-        summary: 'Register a new publisher',
-        description: 'Creates a new publisher account.',
-        operationId: 'createPublisher',
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/CreatePublisherRequest' },
-            },
-          },
-        },
-        responses: {
-          '201': {
-            description: 'The publisher was created.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/Publisher' },
-              },
-            },
-          },
-          '400': { $ref: '#/components/responses/BadRequest' },
-        },
-      },
-    },
-    '/publishers/me/apis': {
-      get: {
-        tags: ['Publishers'],
-        summary: 'List APIs owned by the authenticated publisher',
-        description: 'Returns all APIs owned by the publisher identified by the API key.',
-        operationId: 'listMyApis',
-        security: [{ ApiKeyAuth: [] }],
-        responses: {
-          '200': {
-            description: 'APIs owned by the authenticated publisher.',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ApiList' },
-              },
-            },
-          },
-          '401': { $ref: '#/components/responses/Unauthorized' },
-        },
-      },
-    },
-    '/api/{id}/{path}': {
-      parameters: [
-        {
-          name: 'id',
-          in: 'path',
-          required: true,
-          description: 'Identifier of the API to proxy to.',
-          schema: { type: 'string' },
-        },
-        {
-          name: 'path',
-          in: 'path',
-          required: true,
-          description: 'Upstream path to forward the request to.',
-          schema: { type: 'string' },
-        },
-      ],
-      get: {
-        tags: ['Proxy'],
-        summary: 'Proxy a GET request to an API',
-        description:
-          'Forwards the request to the upstream provider for the given API. If no ' +
-          'valid payment is presented, the gateway responds with 402 and the ' +
-          'PAYMENT-REQUIRED header describing the x402 payment requirements.',
-        operationId: 'proxyGet',
-        responses: {
-          '200': {
-            description: 'The upstream response.',
-          },
-          '402': { $ref: '#/components/responses/PaymentRequired' },
-          '404': { $ref: '#/components/responses/NotFound' },
-          '405': { $ref: '#/components/responses/MethodNotAllowed' },
-        },
-      },
-      post: {
-        tags: ['Proxy'],
-        summary: 'Proxy a POST request to an API',
-        description:
-          'Forwards the request to the upstream provider for the given API. If no ' +
-          'valid payment is presented, the gateway responds with 402 and the ' +
-          'PAYMENT-REQUIRED header describing the x402 payment requirements.',
-        operationId: 'proxyPost',
-        responses: {
-          '200': {
-            description: 'The upstream response.',
-          },
-          '402': { $ref: '#/components/responses/PaymentRequired' },
-          '404': { $ref: '#/components/responses/NotFound' },
-          '405': { $ref: '#/components/responses/MethodNotAllowed' },
-        },
-      },
-      put: {
-        tags: ['Proxy'],
-        summary: 'Proxy a PUT request to an API',
-        description:
-          'Forwards the request to the upstream provider for the given API. If no ' +
-          'valid payment is presented, the gateway responds with 402 and the ' +
-          'PAYMENT-REQUIRED header describing the x402 payment requirements.',
-        operationId: 'proxyPut',
-        responses: {
-          '200': {
-            description: 'The upstream response.',
-          },
-          '402': { $ref: '#/components/responses/PaymentRequired' },
-          '404': { $ref: '#/components/responses/NotFound' },
-          '405': { $ref: '#/components/responses/MethodNotAllowed' },
-        },
-      },
-      patch: {
-        tags: ['Proxy'],
-        summary: 'Proxy a PATCH request to an API',
-        description:
-          'Forwards the request to the upstream provider for the given API. If no ' +
-          'valid payment is presented, the gateway responds with 402 and the ' +
-          'PAYMENT-REQUIRED header describing the x402 payment requirements.',
-        operationId: 'proxyPatch',
-        responses: {
-          '200': {
-            description: 'The upstream response.',
-          },
-          '402': { $ref: '#/components/responses/PaymentRequired' },
-          '404': { $ref: '#/components/responses/NotFound' },
-          '405': { $ref: '#/components/responses/MethodNotAllowed' },
+          "200": { description: "The updated API.", content: json(schemaRef("OwnerApi")) },
+          "400": responseRef("BadRequest"),
+          "401": responseRef("Unauthorized"),
+          "403": responseRef("Forbidden"),
+          "404": responseRef("NotFound"),
         },
       },
       delete: {
-        tags: ['Proxy'],
-        summary: 'Proxy a DELETE request to an API',
-        description:
-          'Forwards the request to the upstream provider for the given API. If no ' +
-          'valid payment is presented, the gateway responds with 402 and the ' +
-          'PAYMENT-REQUIRED header describing the x402 payment requirements.',
-        operationId: 'proxyDelete',
+        tags: ["API management"],
+        summary: "Archive an API",
+        description: "Unlists and hides the API. Its call history is kept for statistics.",
+        operationId: "archiveApi",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [paramRef("RequestTimestamp"), paramRef("RequestSignature")],
         responses: {
-          '200': {
-            description: 'The upstream response.',
-          },
-          '402': { $ref: '#/components/responses/PaymentRequired' },
-          '404': { $ref: '#/components/responses/NotFound' },
-          '405': { $ref: '#/components/responses/MethodNotAllowed' },
+          "200": { description: "The API was archived.", content: json(schemaRef("ArchivedApi")) },
+          "401": responseRef("Unauthorized"),
+          "404": responseRef("NotFound"),
         },
       },
     },
+    "/apis/{id}/openapi.json": {
+      parameters: [paramRef("ApiId")],
+      get: {
+        tags: ["Catalog"],
+        summary: "Get an API's own OpenAPI document",
+        description: "The provider's document, rewritten to point at the paid proxy URL.",
+        operationId: "getApiOpenApi",
+        responses: {
+          "200": {
+            description: "OpenAPI document.",
+            content: json({ type: "object", additionalProperties: true }),
+          },
+          "404": responseRef("NotFound"),
+        },
+      },
+    },
+    "/apis/{id}/verify-ownership": {
+      parameters: [paramRef("ApiId")],
+      post: {
+        tags: ["API management"],
+        summary: "Verify upstream ownership",
+        description:
+          "Fetches ownershipVerification.url on the upstream origin and checks it serves " +
+          "ownershipVerification.expectedContent.",
+        operationId: "verifyApiOwnership",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [paramRef("RequestTimestamp"), paramRef("RequestSignature")],
+        responses: {
+          "200": {
+            description: "The API with its updated ownership status.",
+            content: json(schemaRef("OwnerApi")),
+          },
+          "400": responseRef("BadRequest"),
+          "401": responseRef("Unauthorized"),
+          "404": responseRef("NotFound"),
+        },
+      },
+    },
+    "/apis/{id}/stats": {
+      parameters: [paramRef("ApiId")],
+      get: {
+        tags: ["Statistics"],
+        summary: "Usage and revenue for one of your APIs",
+        description: "Totals plus the 50 most recent calls. Archived APIs are included.",
+        operationId: "getApiStats",
+        security: [{ ApiKeyAuth: [] }],
+        responses: {
+          "200": { description: "Statistics.", content: json(schemaRef("ApiStats")) },
+          "400": responseRef("BadRequest"),
+          "401": responseRef("Unauthorized"),
+          "404": responseRef("NotFound"),
+        },
+      },
+    },
+    "/apis/{id}/stats/time-series": {
+      parameters: [paramRef("ApiId")],
+      get: {
+        tags: ["Statistics"],
+        summary: "Daily calls and revenue for one of your APIs",
+        operationId: "getApiTimeSeries",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: "days",
+            in: "query",
+            description: "Window size. Other values fall back to 30.",
+            schema: { type: "integer", enum: [7, 30, 90], default: 30 },
+          },
+        ],
+        responses: {
+          "200": { description: "Daily series.", content: json(schemaRef("ApiTimeSeries")) },
+          "401": responseRef("Unauthorized"),
+          "404": responseRef("NotFound"),
+        },
+      },
+    },
+    "/payers/{address}/calls": {
+      parameters: [
+        {
+          name: "address",
+          in: "path",
+          required: true,
+          description: "Payer wallet.",
+          schema: stellarAddress,
+        },
+      ],
+      get: {
+        tags: ["Statistics"],
+        summary: "Receipts for calls a wallet paid for",
+        operationId: "listPayerCalls",
+        parameters: [paramRef("Limit"), paramRef("Offset")],
+        responses: {
+          "200": { description: "One page of calls.", content: json(schemaRef("PayerCalls")) },
+          "400": responseRef("BadRequest"),
+        },
+      },
+    },
+    "/publishers": {
+      post: {
+        tags: ["Publishers"],
+        summary: "Register as a publisher",
+        description:
+          "Creates a publisher and returns its API key (shown once). Public and rate-limited " +
+          "per client IP (RATE_LIMIT_REGISTER_IP_MAX per RATE_LIMIT_REGISTER_IP_WINDOW_MS).",
+        operationId: "registerPublisher",
+        requestBody: { required: true, content: json(schemaRef("CreatePublisherRequest")) },
+        responses: {
+          "201": {
+            description: "The publisher was created.",
+            headers: rateLimitHeaders,
+            content: json(schemaRef("RegisteredPublisher")),
+          },
+          "400": responseRef("BadRequest"),
+          "409": {
+            description: "Email already registered.",
+            content: json(schemaRef("Error")),
+          },
+          "429": responseRef("TooManyRequests"),
+        },
+      },
+    },
+    "/publishers/me/apis": {
+      get: {
+        tags: ["API management"],
+        summary: "List your APIs",
+        description: "All non-archived APIs owned by the caller, listed or not, newest first.",
+        operationId: "listMyApis",
+        security: [{ ApiKeyAuth: [] }],
+        responses: {
+          "200": {
+            description: "Your APIs.",
+            content: json({ type: "array", items: schemaRef("OwnerApi") }),
+          },
+          "401": responseRef("Unauthorized"),
+        },
+      },
+    },
+    "/api/{id}/pass": {
+      parameters: [paramRef("ApiId")],
+      post: {
+        tags: ["Proxy"],
+        summary: "Buy a 1-hour access pass",
+        description:
+          "Pays passPrice once via x402; calls from the same wallet are then free until the " +
+          "pass expires. Without a payment the gateway answers with the 402 challenge.",
+        operationId: "buyAccessPass",
+        security: [{}, { X402Payment: [] }],
+        responses: {
+          "200": { description: "A pass is already active.", content: json(schemaRef("AccessPass")) },
+          "201": { description: "Pass activated.", content: json(schemaRef("AccessPass")) },
+          "402": responseRef("PaymentRequired"),
+          "404": responseRef("NotFound"),
+        },
+      },
+    },
+    "/api/{id}": proxyPathItem(false),
+    "/api/{id}/{path}": proxyPathItem(true),
   },
 };
 

@@ -221,207 +221,87 @@ function normalizePersisted(raw: unknown): ProfileState {
   if (!raw || typeof raw !== "object") {
     return { version: STATE_VERSION, activeProfile: "default", profiles: {} };
   }
-  const obj = raw as Record<string, unknown>;
+  const obj = raw as {
+    version?: unknown;
+    activeProfile?: unknown;
+    profiles?: unknown;
+  };
   const profiles: Record<string, WalletProfile> = {};
-  const rawProfiles =
-    obj.profiles && typeof obj.profiles === "object"
-      ? (obj.profiles as Record<string, unknown>)
-      : {};
-  for (const [name, value] of Object.entries(rawProfiles)) {
-    if (!/^[A-Za-z0-9._-]{1,64}$/.test(name) || !value || typeof value !== "object") continue;
-    const v = value as Record<string, unknown>;
-    const profile: WalletProfile = {};
-    const w = v.wallet;
-    if (w && typeof w === "object") {
-      const ww = w as Record<string, unknown>;
-      if (
-        typeof ww.publicKey === "string" &&
-        ww.publicKey.length > 0 &&
-        typeof ww.secretKey === "string" &&
-        ww.secretKey.length > 0
-      ) {
-        profile.wallet = { publicKey: ww.publicKey, secretKey: ww.secretKey };
-      }
+  if (obj.profiles && typeof obj.profiles === "object") {
+    for (const [name, value] of Object.entries(obj.profiles as Record<string, unknown>)) {
+      if (!isValidProfileName(name)) continue;
+      const profile = normalizeProfile(value);
+      if (profile) profiles[name] = profile;
     }
-    if (typeof v.apiKey === "string" && v.apiKey.length > 0) profile.apiKey = v.apiKey;
-    if (v.network === "testnet" || v.network === "mainnet") profile.network = v.network;
-    profiles[name] = profile;
   }
-  const requested = typeof obj.activeProfile === "string" ? obj.activeProfile : "default";
-  const activeProfile = (requested in profiles ? requested : Object.keys(profiles)[0]) ?? "default";
+  const activeProfile =
+    typeof obj.activeProfile === "string" && isValidProfileName(obj.activeProfile)
+      ? obj.activeProfile
+      : "default";
   return { version: STATE_VERSION, activeProfile, profiles };
 }
 
-/**
- * Write bytes to a temp file in the same directory and atomically rename it over
- * the destination to avoid partial writes. The destination is never left half-
- * written when the rename fails, and the file retains the requested mode.
- */
-export function writeAtomically(
-  filePath: string,
-  data: string,
-  mode: number,
-  ops: Partial<typeof import("fs")> = {},
-): void {
-  const dir = dirname(filePath);
-  mkdirSync(dir, { recursive: true });
+function normalizeProfile(raw: unknown): WalletProfile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as {
+    network?: unknown;
+    apiKey?: unknown;
+    wallet?: unknown;
+  };
+  const profile: WalletProfile = {};
+  if (typeof obj.network === "string" && obj.network.length > 0) {
+    profile.network = obj.network;
+  }
+  if (typeof obj.apiKey === "string" && obj.apiKey.length > 0) {
+    profile.apiKey = obj.apiKey;
+  }
+  if (obj.wallet && typeof obj.wallet === "object") {
+    const wallet = normalizeWallet(obj.wallet);
+    if (wallet) profile.wallet = wallet;
+  }
+  return profile;
+}
 
-  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  const writeSync = ops.writeFileSync ?? writeFileSync;
-  const rename = ops.renameSync ?? renameSync;
-  const chmod = ops.chmodSync ?? chmodSync;
-  const pathExists = ops.existsSync ?? existsSync;
-  const remove = ops.unlinkSync ?? unlinkSync;
+function normalizeWallet(raw: unknown): WalletProfile["wallet"] | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as {
+    publicKey?: unknown;
+    secretKey?: unknown;
+    address?: unknown;
+  };
+  if (typeof obj.publicKey !== "string" || obj.publicKey.length === 0) return null;
+  if (typeof obj.secretKey !== "string" || obj.secretKey.length === 0) return null;
+  const wallet: NonNullable<WalletProfile["wallet"]> = {
+    publicKey: obj.publicKey,
+    secretKey: obj.secretKey,
+  };
+  if (typeof obj.address === "string" && obj.address.length > 0) {
+    wallet.address = obj.address;
+  }
+  return wallet;
+}
 
+function isValidProfileName(name: string): boolean {
+  return /^[a-zA-Z0-9_-]{1,64}$/.test(name);
+}
+
+function writeAtomically(path: string, contents: string, mode: number): void {
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const tmp = `${path}.tmp-${randomBytes(6).toString("hex")}`;
+  writeFileSync(tmp, contents, { mode });
   try {
-    writeSync(tempPath, data, { mode });
-    rename(tempPath, filePath);
-    chmod(filePath, mode);
-  } catch (err) {
-    try {
-      if (pathExists(tempPath)) remove(tempPath);
-    } catch {
-      // ignore cleanup errors; the caller already received the write failure
-    }
-    throw err;
+    chmodSync(tmp, mode);
+  } catch {
+    // best-effort on platforms without chmod semantics
   }
-}
-
-/**
- * Persist a restored ProfileState to disk (mode 0600), mirroring saveState in
- * index.ts. Exposed for testability.
- */
-export function persistState(state: ProfileState): void {
+  renameSync(tmp, path);
   try {
-    writeAtomically(STATE_FILE, JSON.stringify(state, null, 2), 0o600);
-  } catch (err) {
-    throw new StateBackupError(`Failed to persist restored state: ${err}`);
+    if (statSync(path).mode & 0o077) chmodSync(path, mode);
+  } catch {
+    // best-effort
   }
 }
 
-/**
- * Preserve an unreadable or structurally invalid state file instead of letting
- * the next `saveState()` overwrite the only copy of it.
- *
- * The corrupted file is moved aside to `<file>.corrupt-<now-ms>` (same owner
- * and mode as the original) so the evidence is never lost and the live path is
- * clean for a fresh start. Returns the quarantine path when it worked and
- * throws otherwise.
- */
-export function quarantineStateFile(
-  filePath: string = STATE_FILE,
-  now: number = Date.now(),
-): string {
-  const quarantinePath = `${filePath}.corrupt-${now}`;
-  try {
-    mkdirSync(dirname(filePath), { recursive: true });
-    renameSync(filePath, quarantinePath);
-    return quarantinePath;
-  } catch (err) {
-    throw new StateBackupError(`Failed to quarantine corrupted state file: ${err}`);
-  }
-}
-
-/**
- * Snapshot the pre-migration legacy state before it is re-persisted, so a later
- * migration cannot destroy the only record of the original format.
- *
- * The legacy JSON is written to `<file>.legacy` (mode 0600, like the state file
- * itself). Throws when the snapshot could not be saved so the caller can decide
- * whether to proceed with the migration.
- */
-export function preserveLegacyState(raw: unknown, filePath: string = STATE_FILE): void {
-  try {
-    mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(`${filePath}.legacy`, JSON.stringify(raw, null, 2), { mode: 0o600 });
-  } catch (err) {
-    throw new StateBackupError(`Failed to preserve legacy state before migration: ${err}`);
-  }
-}
-
-// ── State file permission checks ────────────────────────────────────────────
-
-export interface StatePermissionResult {
-  exists: boolean;
-  mode: string | null;
-  expectedMode: string;
-  isSafe: boolean;
-  message: string;
-}
-
-/**
- * Format a numeric mode as a 4-digit octal string (e.g. 0o600 → "0600").
- */
-function formatMode(mode: number): string {
-  return "0" + (mode & 0o7777).toString(8).padStart(3, "0");
-}
-
-/**
- * Check the state file's permissions. Returns whether the file exists, its
- * current mode, whether it matches the expected 0600, and an actionable message.
- *
- * The state file contains wallet secret keys and publisher API keys, so it
- * must be mode 0600 (owner read/write only). Broader permissions (e.g. 0644)
- * allow other users on the system to read the secrets.
- */
-export function checkStatePermissions(): StatePermissionResult {
-  const EXPECTED = 0o600;
-  const expectedStr = formatMode(EXPECTED);
-
-  if (!existsSync(STATE_FILE)) {
-    return {
-      exists: false,
-      mode: null,
-      expectedMode: expectedStr,
-      isSafe: true,
-      message: `State file ${STATE_FILE} does not exist. No secrets to protect.`,
-    };
-  }
-
-  try {
-    const stat = statSync(STATE_FILE);
-    // stat.mode includes file type bits; mask to permission bits only.
-    const permBits = stat.mode & 0o7777;
-    const currentStr = formatMode(permBits);
-    const isSafe = permBits === EXPECTED;
-
-    if (isSafe) {
-      return {
-        exists: true,
-        mode: currentStr,
-        expectedMode: expectedStr,
-        isSafe: true,
-        message: `State file permissions are safe (${currentStr}).`,
-      };
-    }
-
-    // Build an actionable warning for unsafe modes.
-    const othersRead = (permBits & 0o004) !== 0;
-    const groupRead = (permBits & 0o040) !== 0;
-    const issues: string[] = [];
-    if (othersRead) issues.push("world-readable (other can read)");
-    if (groupRead) issues.push("group-readable");
-    if ((permBits & 0o002) !== 0) issues.push("world-writable");
-    if ((permBits & 0o020) !== 0) issues.push("group-writable");
-
-    return {
-      exists: true,
-      mode: currentStr,
-      expectedMode: expectedStr,
-      isSafe: false,
-      message: [
-        `State file permissions are UNSAFE (${currentStr}): ${issues.join(", ")}.`,
-        `Wallet secret keys and API keys may be readable by other users.`,
-        `Fix: chmod ${expectedStr} ${STATE_FILE}`,
-      ].join("\n"),
-    };
-  } catch (err) {
-    return {
-      exists: true,
-      mode: null,
-      expectedMode: expectedStr,
-      isSafe: false,
-      message: `Could not read state file permissions: ${err}`,
-    };
-  }
-}
+// Keep unlinkSync referenced for parity with reset flows that may import it.
+void unlinkSync;
