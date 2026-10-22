@@ -5,6 +5,7 @@ import { publisherRegisterSchema } from "../schemas/requests.js";
 import { requestSignatureAuth } from "../middleware/requestSignatureAuth.js";
 import { registerIpRateLimit } from "../middleware/rateLimiters.js";
 import { registerPublisher, rotatePublisherKey } from "../services/publisherService.js";
+import { getPublisherAnalytics } from "../services/apiService.js";
 import { eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { publishers } from "../db/schema.js";
@@ -76,6 +77,11 @@ router.post("/publishers/me/rotate-key", apiKeyAuth, requestSignatureAuth, async
     apiKey, // shown once — store it securely
     rotatedAt: new Date().toISOString(),
   });
+});
+
+// GET /publishers/me/analytics — calls and revenue across all of the provider's APIs (authenticated)
+router.get("/publishers/me/analytics", apiKeyAuth, async (req, res) => {
+  res.json(await getPublisherAnalytics(req.publisher!.id));
 });
 
 export default router;

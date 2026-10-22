@@ -45,4 +45,3 @@ export async function getPublisherById(id: string) {
     .where(eq(publishers.id, id))
     .then((rows) => rows[0] ?? null);
 }
-

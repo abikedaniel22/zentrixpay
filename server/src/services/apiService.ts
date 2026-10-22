@@ -586,82 +586,143 @@ export async function listApisForHealthCheck(): Promise<ApiRow[]> {
     .where(and(eq(apis.listed, true), isNotNull(apis.healthPath)));
 }
 
-export async function reverifyOwnership(api: ApiRecord): Promise<boolean> {
-  const verified = await verifyOwnership(api.upstreamUrl, api.ownershipToken);
-  const now = new Date().toISOString();
-
-  if (verified) {
-    if (!api.ownershipVerified) {
-      await db('apis')
-        .where({ id: api.id })
-        .update({ ownershipVerified: true, updatedAt: now });
-    }
-    return true;
-  }
-
-  // Token disappeared: unlist and notify.
-  await db('apis')
-    .where({ id: api.id })
-    .update({ ownershipVerified: false, listed: false, updatedAt: now });
-
-  logger.warn(
-    { apiId: api.id, publisherId: api.publisherId },
-    'Ownership token no longer verifiable; API unlisted',
-  );
-
-  try {
-    await notificationService.notifyOwnershipLost({
-      apiId: api.id,
-      publisherId: api.publisherId,
-      apiName: api.name,
-      upstreamUrl: api.upstreamUrl,
-    });
-  } catch (err) {
-    logger.error(
-      { err, apiId: api.id },
-      'Failed to send ownership-lost notification',
-    );
-  }
-
-  return false;
+/**
+ * Record one health check. A success makes the API healthy at once; it turns
+ * unhealthy only after `failureThreshold` consecutive failures.
+ */
+export async function recordHealthCheck(
+  api: ApiRow,
+  ok: boolean,
+  failureThreshold: number,
+): Promise<ApiRow> {
+  const now = new Date();
+  const [row] = await db
+    .update(apis)
+    .set(
+      ok
+        ? { healthy: true, healthFailures: 0, lastHealthCheckAt: now }
+        : {
+            healthFailures: sql`${apis.healthFailures} + 1`,
+            healthy: sql`case when ${apis.healthFailures} + 1 >= ${failureThreshold} then false else ${apis.healthy} end`,
+            lastHealthCheckAt: now,
+          },
+    )
+    .where(eq(apis.id, api.id))
+    .returning();
+  if (row && row.healthy !== api.healthy) invalidateApiCache(api.id);
+  return row ?? api;
 }
 
-export async function runOwnershipRecheck(): Promise<{
-  checked: number;
-  unlisted: number;
-}> {
-  const apis = await listApisForOwnershipRecheck();
-  let unlisted = 0;
-  for (const api of apis) {
-    const ok = await reverifyOwnership(api);
-    if (!ok) {
-      unlisted += 1;
-    }
-  }
-  return { checked: apis.length, unlisted };
+/**
+ * Totals across every API a provider owns (archived ones included, since their
+ * calls were real), plus a per-API breakdown. APIs with no calls show zeros.
+ */
+export async function getPublisherAnalytics(publisherId: string) {
+  const [totals] = await db
+    .select({
+      calls: sql<number>`count(*)::int`,
+      chargedCalls: sql<number>`count(*) filter (where ${apiCalls.charged})::int`,
+      revenue: sql<string>`coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0)::text`,
+    })
+    .from(apiCalls)
+    .innerJoin(apis, eq(apiCalls.apiId, apis.id))
+    .where(eq(apis.publisherId, publisherId));
+
+  const perApi = await db
+    .select({
+      id: apis.id,
+      name: apis.name,
+      archivedAt: apis.archivedAt,
+      calls: sql<number>`count(${apiCalls.id})::int`,
+      chargedCalls: sql<number>`count(${apiCalls.id}) filter (where ${apiCalls.charged})::int`,
+      revenue: sql<string>`coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0)::text`,
+    })
+    .from(apis)
+    .leftJoin(apiCalls, eq(apiCalls.apiId, apis.id))
+    .where(eq(apis.publisherId, publisherId))
+    .groupBy(apis.id)
+    .orderBy(desc(apis.createdAt));
+
+  return {
+    totals: {
+      apis: perApi.length,
+      calls: totals?.calls ?? 0,
+      chargedCalls: totals?.chargedCalls ?? 0,
+      revenue: totals?.revenue ?? "0",
+      currency: "USDC" as const,
+    },
+    apis: perApi,
+  };
 }
 
-let recheckTimer: NodeJS.Timeout | null = null;
-
-export function startOwnershipRecheckSchedule(
-  intervalMs: number,
-): void {
-  if (recheckTimer) {
-    clearInterval(recheckTimer);
-  }
-  recheckTimer = setInterval(() => {
-    runOwnershipRecheck().catch((err) => {
-      logger.error({ err }, 'Ownership recheck run failed');
-    });
-  }, intervalMs);
-  if (typeof recheckTimer.unref === 'function') {
-    recheckTimer.unref();
-  }
+export async function getApiStats(apiId: string) {
+  const [totals] = await db
+    .select({
+      calls: sql<number>`count(*)::int`,
+      chargedCalls: sql<number>`count(*) filter (where ${apiCalls.charged})::int`,
+      revenue: sql<string>`coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0)::text`,
+      uniquePayers: sql<number>`count(distinct ${apiCalls.payerAddress}) filter (where ${apiCalls.charged})::int`,
+      avgDurationMs: sql<number>`coalesce(avg(${apiCalls.durationMs}), 0)::int`,
+      refundedCalls: sql<number>`count(*) filter (where ${apiCalls.refundStatus} = 'refunded')::int`,
+      refunded: sql<string>`coalesce(sum(${apiCalls.refundAmount}::numeric) filter (where ${apiCalls.refundStatus} = 'refunded'), 0)::text`,
+      netRevenue: sql<string>`(coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0) - coalesce(sum(${apiCalls.refundAmount}::numeric) filter (where ${apiCalls.refundStatus} = 'refunded'), 0))::text`,
+    })
+    .from(apiCalls)
+    .where(eq(apiCalls.apiId, apiId));
+  return { ...totals, currency: "USDC" };
 }
 
-export function stopOwnershipRecheckSchedule(): void {
-  if (recheckTimer) {
-    clearInterval(recheckTimer);
-    recheckTimer = null;
+export async function listRecentCalls(apiId: string, limit: number) {
+  return db
+    .select()
+    .from(apiCalls)
+    .where(eq(apiCalls.apiId, apiId))
+    .orderBy(desc(apiCalls.createdAt))
+    .limit(limit);
+}
+
+/** One data point in a time-series response: calls and revenue for a single calendar day. */
+export interface TimeSeriesPoint {
+  date: string; // ISO date yyyy-mm-dd in UTC
+  calls: number;
+  revenue: string; // USDC, as decimal string
+}
+
+/**
+ * Returns one row per UTC calendar day, covering the last `days` days (today
+ * inclusive). Days with no calls are filled in with zeros so the caller always
+ * gets a contiguous series.
+ */
+export async function getApiTimeSeries(
+  apiId: string,
+  days: 7 | 30 | 90,
+): Promise<TimeSeriesPoint[]> {
+  const rows = await db
+    .select({
+      date: sql<string>`to_char(date_trunc('day', ${apiCalls.createdAt} at time zone 'UTC'), 'YYYY-MM-DD')`,
+      calls: sql<number>`count(*)::int`,
+      revenue: sql<string>`coalesce(sum(${apiCalls.amount}::numeric) filter (where ${apiCalls.charged}), 0)::text`,
+    })
+    .from(apiCalls)
+    .where(
+      and(
+        eq(apiCalls.apiId, apiId),
+        sql`${apiCalls.createdAt} >= now() - interval '${sql.raw(String(days))} days'`,
+      ),
+    )
+    .groupBy(sql`1`)
+    .orderBy(sql`1`);
+
+  // Build a map so we can fill in missing dates with zeros.
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+
+  const result: TimeSeriesPoint[] = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+    const dateStr = d.toISOString().slice(0, 10);
+    const row = byDate.get(dateStr);
+    result.push({ date: dateStr, calls: row?.calls ?? 0, revenue: row?.revenue ?? "0" });
   }
+  return result;
 }

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { hashFileResource, hashLinkResource } from "./crypto.js";
+import {
+  API_KEY_PREFIX,
+  generateApiKey,
+  hashApiKey,
+  hashFileResource,
+  hashLinkResource,
+} from "./crypto.js";
 
 const BUF_HELLO = Buffer.from("hello world");
 const BUF_HELLO2 = Buffer.from("hello world");
@@ -68,5 +74,25 @@ describe("hashLinkResource (issue #13)", () => {
 
   it("changes when title changes", () => {
     expect(hashLinkResource(url, "Title A")).not.toBe(hashLinkResource(url, "Title B"));
+  });
+});
+
+describe("generateApiKey", () => {
+  it("issues keys with the zp_ prefix", () => {
+    expect(API_KEY_PREFIX).toBe("zp_");
+    expect(generateApiKey()).toMatch(/^zp_[0-9a-f]{64}$/);
+  });
+
+  it("issues a different key each time", () => {
+    expect(generateApiKey()).not.toBe(generateApiKey());
+  });
+});
+
+describe("hashApiKey", () => {
+  it("hashes legacy mv_ keys the same way, so they still authenticate", () => {
+    const legacy = `mv_${"a".repeat(64)}`;
+    expect(hashApiKey(legacy)).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashApiKey(legacy)).toBe(hashApiKey(legacy));
+    expect(hashApiKey(legacy)).not.toBe(hashApiKey(`zp_${"a".repeat(64)}`));
   });
 });

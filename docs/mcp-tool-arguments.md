@@ -22,7 +22,7 @@ accepts, what a rejection looks like, and which values are normalized.
 | Missing required arguments | Rejected, naming each missing field.                                                                                                         |
 | Strings                    | Trimmed before use; empty (or whitespace-only) is rejected.                                                                                  |
 | Booleans ("flags")         | Accept `true`/`false`, `1`/`0`, and the strings `true/false`, `yes/no`, `on/off`, `1/0` (case-insensitive). Anything else is rejected.       |
-| Digests                    | Accept the fixed metadata hash format — see [MCP metadata hash format](mcp-metadata-hash.md).                                                |
+| Digests                    | Accept the fixed metadata hash format implemented in `mcp/src/metadataHash.ts`.                                                           |
 | `attestationHash`          | An opaque verifier-provided string (maximum 64 characters), compared exactly after trimming; it is distinct from the metadata `contentHash`. |
 | On-chain resource ID       | 1–24 lowercase ASCII letters or digits, matching the vault-registry contract.                                                                |
 | Multiple problems          | Reported together in one error, in schema order.                                                                                             |
@@ -59,7 +59,7 @@ that want to branch on the failure rather than parse prose.
 
 `confirmMainnet` (flag, optional) is accepted by every mutating tool and is
 **required on mainnet** unless `ZENTRIXPAY_ALLOW_MAINNET=1` is set on the server
-— see [mainnet guardrails](mainnet-deployment-checklist.md).
+— see [mainnet guardrails](environment-variables.md#mcp-mainnet-guardrails).
 
 | Tool                           | Argument               | Required | Accepted values                                           |
 | ------------------------------ | ---------------------- | -------- | --------------------------------------------------------- |
@@ -106,7 +106,7 @@ that want to branch on the failure rather than parse prose.
 | `zentrixpay_check_bindings`     | —                      | —        | takes no arguments                                        |
 | `zentrixpay_verify_install`     | —                      | —        | takes no arguments                                        |
 | `zentrixpay_check_consistency`  | `resourceId`           | yes      | resource id                                               |
-|                                | `expectedMetadataHash` | no       | [metadata digest](mcp-metadata-hash.md)                   |
+|                                | `expectedMetadataHash` | no       | metadata digest                   |
 | `zentrixpay_registry_lookup`    | `resourceId`           | yes      | resource id                                               |
 | `zentrixpay_registry_list`      | `start`                | no       | integer ≥ 0 (default 0)                                   |
 |                                | `limit`                | no       | integer 1–20 (default 20; contract cap)                   |

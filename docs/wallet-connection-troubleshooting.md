@@ -33,7 +33,7 @@ Before diving into a specific error, confirm:
 
 ### Wrong network
 
-**Symptom:** Connection succeeds, but signing fails with _"Wrong network"_ or similar error when trying to register a resource or approve a transaction. The Freighter extension may also show a banner saying the app expects a different network.
+**Symptom:** Connection succeeds, but signing fails with _"Wrong network"_ or similar error when trying to approve a payment or transaction. The Freighter extension may also show a banner saying the app expects a different network.
 
 **Cause:** Freighter is set to **Mainnet** (Public Global Network) but ZentrixPay runs on **Testnet**. The network passphrase baked into the transaction does not match what Freighter expects.
 
@@ -48,13 +48,13 @@ To verify the correct network after switching, connect your wallet and check the
 
 See also: [x402 payment troubleshooting — Wrong network](x402-payment-troubleshooting.md#wrong-network-testnet-vs-mainnet).
 
-For the full browser buyer flow (catalog → 402 → sign → delivery), see [x402 browser payment walkthrough](x402-browser-payment-walkthrough.md).
+For payment and signing failures after the wallet connects, see [x402 payment troubleshooting](x402-payment-troubleshooting.md).
 
 ---
 
 ### Rejected signature
 
-**Symptom:** Clicking "Register on-chain" or confirming a price change shows a signing prompt, but after dismissing or rejecting it, the operation fails. The wallet may show the error string returned by Freighter.
+**Symptom:** Paying for a call (e.g. "Try it" in the catalog) shows a signing prompt, but after dismissing or rejecting it, the operation fails. The wallet may show the error string returned by Freighter.
 
 **Cause:** The user closed the Freighter popup without signing, or explicitly rejected the signature request. Freighter requires explicit user approval for every transaction.
 
@@ -151,5 +151,5 @@ See the [x402 payment troubleshooting](x402-payment-troubleshooting.md#browser-s
 1. Open your browser's developer console (F12) and look for any Freighter-related errors or warnings.
 2. Try disconnecting and reconnecting: click "Disconnect" in the header, then "Connect wallet" again.
 3. Check [Stellar Explorer](https://stellar.expert/explorer/testnet) for your account's balance and trustlines.
-4. If the problem is related to payment or signing during a resource transaction, see [x402 payment troubleshooting](x402-payment-troubleshooting.md).
+4. If the problem is related to payment or signing during a paid call, see [x402 payment troubleshooting](x402-payment-troubleshooting.md).
 5. Open a GitHub issue with: network (testnet/mainnet), browser name and version, the exact error message, and your Stellar G-address (never post your secret key).

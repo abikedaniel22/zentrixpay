@@ -7,11 +7,11 @@ Payment and signing failures are the most common support issues in ZentrixPay. T
 Before diving into a specific error, confirm:
 
 1. **Network** — ZentrixPay runs on **Stellar testnet** (`stellar:testnet`). Your wallet, MCP agent, and the server's `NETWORK` env must all match.
-2. **USDC balance** — The payer needs enough USDC for the resource price **plus** a small reserve for fees.
+2. **USDC balance** — The payer needs enough USDC for the API's per-call price **plus** a small reserve for fees.
 3. **USDC trustline** — Classic Stellar accounts must trust the testnet USDC issuer before they can hold or send USDC.
 4. **x402-aware client** — Plain `curl` without payment handling will stop at HTTP 402. Use an x402 client (`@x402/fetch`, the MCP server, or a wallet-integrated browser flow).
 
-For a step-by-step browser buyer walkthrough, see [x402 browser payment walkthrough](x402-browser-payment-walkthrough.md).
+For a step-by-step look at the 402 handshake, see the [curl walkthrough](curl-402-walkthrough.md).
 
 ---
 
@@ -24,11 +24,11 @@ For a step-by-step browser buyer walkthrough, see [x402 browser payment walkthro
 **Fix:**
 
 - **Browser:** Use a wallet-connected flow that signs Soroban auth entries (Freighter via `@creit.tech/stellar-wallets-kit`).
-- **Agents / scripts:** Use `@x402/fetch` with an `x402Client` registered for `stellar:testnet`, or the ZentrixPay MCP tools (`zentrixpay_buy`, `zentrixpay_publish`).
+- **Agents / scripts:** Use `@x402/fetch` with an `x402Client` registered for `stellar:testnet`, or the ZentrixPay MCP tool `zentrixpay_call`.
 - **Manual test:** Run `pnpm --filter server e2e` — it implements the full 402 → pay → retry cycle.
 
 ```bash
-curl -i https://your-server/resources/<id>
+curl -i https://your-server/api/<api-id>/<path>
 # Expect: HTTP/1.1 402 Payment Required
 # Header: PAYMENT-REQUIRED: eyJ4NDAy...
 ```
@@ -41,7 +41,7 @@ curl -i https://your-server/resources/<id>
 
 **Causes:**
 
-- The signed auth entry was built for a **different price** than the server currently expects (price changed on-chain after signing).
+- The signed auth entry was built for a **different price** than the server currently expects (the provider changed the price after signing).
 - The auth entry **expired** (Soroban auth entries have a limited ledger window).
 - The entry was signed for the **wrong network** or **wrong asset contract**.
 - The retry reused an old `X-Payment` header from a previous attempt.
@@ -118,9 +118,9 @@ curl -i https://your-server/resources/<id>
 
 ### HTTP 429 Too Many Requests
 
-**Symptoms:** `429` with `Retry-After` header on `POST /verify-content` or `POST /resources`.
+**Symptoms:** `429` with `Retry-After` header on `POST /apis`.
 
-**Cause:** Rate limits protect paid AI verification and publish endpoints. Limits apply per IP and per wallet/publisher.
+**Cause:** Rate limits protect API registration. Limits apply per IP and per provider wallet.
 
 **Fix:** Wait for the `Retry-After` seconds indicated in the response. Tune limits via `RATE_LIMIT_*` env vars (see `server/.env.example`) if you operate a high-traffic deployment.
 
@@ -132,45 +132,38 @@ curl -i https://your-server/resources/<id>
 |--------|-------------------|-------------|
 | Wallet setup | User connects Freighter, xBull, Albedo, etc. via `@creit.tech/stellar-wallets-kit` | `zentrixpay_setup_wallet` creates a sponsored testnet account in memory |
 | Signing | Wallet kit bridges to x402's `ClientStellarSigner`; user approves in extension | `createEd25519Signer(secretKey)` + `wrapFetchWithPayment` — fully programmatic |
-| Payment flow | Manual UI actions (register, buy) trigger signed retries | `zentrixpay_buy` / `zentrixpay_publish` handle 402 → sign → retry automatically |
+| Payment flow | "Try it" in the catalog triggers a signed retry | `zentrixpay_call` handles 402 → sign → retry automatically |
 | Trustline | User must fund and trust USDC themselves | Sponsored account service establishes trustline |
 | Persistence | Wallet keys stay in the browser extension | Agent secret key is **in-memory only** — lost when MCP process exits |
 | Typical failures | User on wrong network in wallet; popup blocked; insufficient balance | Forgot `zentrixpay_setup_wallet`; stale in-memory wallet; insufficient USDC |
 
 **Browser tip:** If Freighter shows "Wrong network", switch to Testnet in the extension before signing.
 
-**Agent tip:** Always run `zentrixpay_wallet_info` before `zentrixpay_buy` or `zentrixpay_publish` to confirm balance and address.
+**Agent tip:** Check the wallet's balance and address before `zentrixpay_call` (see [pay-per-call MCP tools](mcp-pay-per-call.md)).
 
 ---
 
 ## Inspecting transactions on Stellar Explorer
 
-ZentrixPay payments and registry operations are real on-chain activity on **Stellar testnet**.
+ZentrixPay payments are real on-chain activity on **Stellar testnet**.
 
 ### Find an account
 
 1. Open [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
-2. Paste the **G-address** (creator wallet, platform `PAY_TO`, or agent wallet).
+2. Paste the **G-address** (provider payout wallet or caller wallet).
 3. Review **Balances** (USDC trustline + amount) and **History** (payments, contract invocations).
 
 ### Find a transaction
 
 - **x402 USDC payments:** Search the payer or recipient G-address → look for **Payment** or Soroban **Invoke Host Function** entries involving USDC.
-- **Registry operations** (register, set price, transfer ownership): Search the creator's G-address or use the `onchainTxHash` returned by the API after registration.
-- **Verification fees:** Platform wallet (`PAY_TO`) receives USDC when creators or agents call `POST /verify-content`.
+- **Settlement hash for a call:** every charged call records its transaction hash. Callers can list theirs with `GET /payers/<G-address>/calls`; providers see recent calls in `GET /apis/<api-id>/stats`.
 
-### Soroban contract calls
-
-For vault-registry operations, open the transaction → **Operations** → **Invoke Host Function** → inspect contract ID (should match `VAULT_REGISTRY_CONTRACT_ID`) and function name (`register`, `set_price`, etc.).
-
-### Server-side registry status
+### Server-side checks
 
 ```bash
-curl https://your-server/registry/status
-curl https://your-server/resources/<id>/verification
+curl https://your-server/health/ready
+curl "https://your-server/payers/<G-address>/calls?limit=10"
 ```
-
-Compare DB/on-chain state with the reconciliation script: `pnpm --filter server reconcile` (see [docs/reconciliation.md](reconciliation.md)).
 
 ---
 

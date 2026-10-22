@@ -31,6 +31,39 @@ and fill in each value.
 | `API_CALL_RETENTION_INTERVAL_MS` | no | `3600000` | How often expired API call records are purged (`0` disables the job) |
 | `API_CALL_RETENTION_BATCH_SIZE` | no | `1000` | Max API call records deleted per statement (1–10000) |
 
+## API gateway
+
+These control the pay-per-call proxy (`/api/:id/*`), upstream health checks and
+provider webhooks.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `UPSTREAM_SECRET_KEY` | no | — | 64 hex chars (32 bytes). Encrypts providers' upstream headers, query secrets and webhook secrets at rest. Without it, APIs cannot be registered with a secret |
+| `PROXY_MAX_REQUEST_BODY` | no | `5mb` | Largest request body forwarded to an upstream |
+| `PROXY_MAX_RESPONSE_BYTES` | no | `10485760` | Largest upstream response accepted (held in memory until payment settles) |
+| `PROXY_DEFAULT_TIMEOUT_MS` | no | `15000` | Upstream timeout when an API does not set its own |
+| `PROXY_MAX_TIMEOUT_MS` | no | `25000` | Ceiling for a per-API timeout |
+| `PROXY_IDEMPOTENCY_TTL_MS` | no | `3600000` | How long a charged response is kept for `Idempotency-Key` replay |
+| `PROXY_IDEMPOTENCY_MAX_ENTRIES` | no | `1000` | Max replayable responses kept (oldest evicted first) |
+| `PROXY_IDEMPOTENCY_MAX_BODY_BYTES` | no | `262144` | Largest response body kept for replay |
+| `PROXY_ALLOW_PRIVATE_UPSTREAMS` | no | `false` | Allow upstreams on private/loopback addresses (local development only) |
+| `PROXY_API_CACHE_TTL_MS` | no | `5000` | How long a proxied API's row is cached between DB lookups |
+| `HEALTH_CHECK_INTERVAL_MS` | no | `60000` | How often APIs with a `healthPath` are pinged (`0` disables) |
+| `HEALTH_CHECK_TIMEOUT_MS` | no | `5000` | Timeout for each health check |
+| `HEALTH_CHECK_FAILURE_THRESHOLD` | no | `3` | Consecutive failures before an API is hidden from the catalog |
+| `WEBHOOK_TIMEOUT_MS` | no | `5000` | Timeout for each provider webhook delivery |
+| `WEBHOOK_MAX_ATTEMPTS` | no | `5` | Delivery attempts per charged-call event |
+| `WEBHOOK_RETRY_BASE_MS` | no | `1000` | Retry delay base; attempt *n* waits `WEBHOOK_RETRY_BASE_MS * 4^n` |
+
+## Legacy vault variables
+
+`AGENT_SECRET_KEY`, `VAULT_REGISTRY_CONTRACT_ID`, `REGISTRY_CONTRACT_ID`,
+`REGISTRY_SECRET_KEY`, `OPENROUTER_API_KEY`, the `VERIFICATION_*` and
+`RATE_LIMIT_VERIFY_*` / `RATE_LIMIT_PUBLISH_*` variables, and the Supabase
+storage settings belong to the old resource vault. The gateway does not use
+them, but `server/src/config.ts` still validates the required ones at startup,
+so they must be set until that code is removed.
+
 ## Mainnet values
 
 Set `STELLAR_NETWORK=mainnet` (or set each variable explicitly). Required mainnet values:

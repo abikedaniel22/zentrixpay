@@ -12,7 +12,7 @@ vi.mock("../db/schema.js", () => ({
 }));
 
 // apiKeyAuth matches by sha256(key); precompute so tests can supply a known key/hash pair.
-const VALID_API_KEY = "mv_test-key";
+const VALID_API_KEY = "zp_test-key";
 const VALID_API_KEY_HASH = createHash("sha256").update(VALID_API_KEY).digest("hex");
 
 const authedPublisher = {
@@ -49,12 +49,18 @@ vi.mock("../config.js", () => ({
   },
 }));
 
-const { mockRegisterPublisher } = vi.hoisted(() => ({
+const { mockRegisterPublisher, mockGetPublisherAnalytics } = vi.hoisted(() => ({
   mockRegisterPublisher: vi.fn(),
+  mockGetPublisherAnalytics: vi.fn(),
 }));
 
 vi.mock("../services/publisherService.js", () => ({
   registerPublisher: mockRegisterPublisher,
+  rotatePublisherKey: vi.fn(),
+}));
+
+vi.mock("../services/apiService.js", () => ({
+  getPublisherAnalytics: mockGetPublisherAnalytics,
 }));
 
 import publisherRouter from "./publishers.js";
@@ -80,7 +86,7 @@ describe("POST /publishers — registration (#294)", () => {
         walletAddress: "GALICE",
         createdAt: new Date("2026-01-01"),
       },
-      apiKey: "mv_freshkey",
+      apiKey: "zp_freshkey",
     });
 
     const res = await request(createTestApp()).post("/publishers").send({
@@ -95,7 +101,7 @@ describe("POST /publishers — registration (#294)", () => {
       name: "Alice",
       email: "alice@example.com",
       walletAddress: "GALICE",
-      apiKey: "mv_freshkey",
+      apiKey: "zp_freshkey",
     });
     expect(mockRegisterPublisher).toHaveBeenCalledWith({
       name: "Alice",
@@ -182,7 +188,7 @@ describe("GET /publishers/me — auth enforcement (#294)", () => {
 
     const res = await request(createTestApp())
       .get("/publishers/me")
-      .set("x-api-key", "mv_wrong-key");
+      .set("x-api-key", "zp_wrong-key");
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Invalid API key");
@@ -202,5 +208,94 @@ describe("GET /publishers/me — auth enforcement (#294)", () => {
       email: "alice@example.com",
       walletAddress: "GALICE",
     });
+  });
+});
+
+describe("legacy mv_ API keys (#12)", () => {
+  it("still authenticate, because keys are matched by hash", async () => {
+    const legacyKey = "mv_legacy-key";
+    publishersLookupRows = [
+      {
+        ...authedPublisher,
+        apiKeyHash: createHash("sha256").update(legacyKey).digest("hex"),
+      },
+    ];
+
+    const res = await request(createTestApp()).get("/publishers/me").set("x-api-key", legacyKey);
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe("pub-1");
+  });
+});
+
+describe("GET /publishers/me/analytics — API analytics (#10)", () => {
+  const emptyAnalytics = {
+    totals: { apis: 0, calls: 0, chargedCalls: 0, revenue: "0", currency: "USDC" },
+    apis: [],
+  };
+
+  beforeEach(() => {
+    publishersLookupRows = [authedPublisher];
+    mockGetPublisherAnalytics.mockReset();
+    mockGetPublisherAnalytics.mockResolvedValue(emptyAnalytics);
+  });
+
+  it("returns 401 when the x-api-key header is missing", async () => {
+    const res = await request(createTestApp()).get("/publishers/me/analytics");
+
+    expect(res.status).toBe(401);
+    expect(mockGetPublisherAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 for an invalid API key", async () => {
+    publishersLookupRows = [];
+
+    const res = await request(createTestApp())
+      .get("/publishers/me/analytics")
+      .set("x-api-key", "zp_wrong-key");
+
+    expect(res.status).toBe(401);
+    expect(mockGetPublisherAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("returns zeroed totals when the provider has no APIs or calls", async () => {
+    const res = await request(createTestApp())
+      .get("/publishers/me/analytics")
+      .set("x-api-key", VALID_API_KEY);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(emptyAnalytics);
+    expect(mockGetPublisherAnalytics).toHaveBeenCalledWith("pub-1");
+  });
+
+  it("returns totals across all of the provider's APIs", async () => {
+    const analytics = {
+      totals: { apis: 2, calls: 15, chargedCalls: 12, revenue: "1.2", currency: "USDC" },
+      apis: [
+        { id: "api-1", name: "Weather", archivedAt: null, calls: 10, chargedCalls: 8, revenue: "0.8" },
+        { id: "api-2", name: "Quotes", archivedAt: null, calls: 5, chargedCalls: 4, revenue: "0.4" },
+      ],
+    };
+    mockGetPublisherAnalytics.mockResolvedValue(analytics);
+
+    const res = await request(createTestApp())
+      .get("/publishers/me/analytics")
+      .set("x-api-key", VALID_API_KEY);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(analytics);
+    expect(mockGetPublisherAnalytics).toHaveBeenCalledWith("pub-1");
+  });
+});
+
+describe("removed resource-era endpoints (#10)", () => {
+  beforeEach(() => {
+    publishersLookupRows = [authedPublisher];
+  });
+
+  it.each(["/publishers/me/resources", "/publishers/leaderboard"])("%s returns 404", async (path) => {
+    const res = await request(createTestApp()).get(path).set("x-api-key", VALID_API_KEY);
+
+    expect(res.status).toBe(404);
   });
 });

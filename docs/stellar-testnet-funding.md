@@ -11,7 +11,7 @@ Every Stellar account needs:
 | Resource | Purpose | How to get it |
 |----------|---------|---------------|
 | **XLM** (lumen) | Account reserve (minimum ~1.5 XLM) + transaction fee (tiny) | Stellar Laboratory friendbot |
-| **USDC** | Verification fees, resource purchases, price changes | Circle testnet faucet |
+| **USDC** | Paying for API calls (callers); receiving payouts (providers) | Circle testnet faucet |
 | **USDC trustline** | Permission to hold USDC | Added via Freighter, Laboratory, or `zentrixpay_setup_wallet` |
 
 > **Soroban accounts** (used by the MCP agent's sponsored wallet) do not need a separate trustline — the SAC can hold USDC directly. **Classic accounts** (browser wallets like Freighter) must add a trustline before receiving USDC.
@@ -39,7 +39,7 @@ zentrixpay_setup_wallet
 → Balance: 0 USDC, ~1.5 XLM
 ```
 
-> The sponsored wallet has an XLM reserve but **zero spendable USDC**. You must fund it from the faucet before publishing or buying.
+> The sponsored wallet has an XLM reserve but **zero spendable USDC**. You must fund it from the faucet before making paid calls.
 
 ---
 
@@ -93,7 +93,7 @@ Once your account has an XLM reserve and a USDC trustline, fund it with spendabl
 3. Complete any CAPTCHA or rate-limit gate.
 4. Wait for the transaction to settle (usually 5–15 seconds).
 
-The faucet sends a small amount of testnet USDC — enough for several verification fees (USDC 0.10 each) and resource purchases.
+The faucet sends a small amount of testnet USDC — enough for many paid API calls at typical per-call prices.
 
 ### Check your balance
 

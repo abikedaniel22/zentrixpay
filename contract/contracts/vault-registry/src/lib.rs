@@ -2542,7 +2542,7 @@ impl VaultRegistry {
     /// or deletes `Resource` storage — only rewrites the derived `TagIndex`
     /// entries for the tags those resources currently carry. Safe to re-run
     /// with the correct current id list as a no-op. See
-    /// `docs/tag-index-repair-design.md` for the full strategy.
+    /// `contract/docs/tag-index-repair-design.md` for the full strategy.
     ///
     /// An empty `ids` list is a documented no-op: it returns `Ok(())` and
     /// deliberately emits **no** `retagidx` event. There is nothing to index, so
@@ -3172,7 +3172,7 @@ impl VaultRegistry {
     /// (else `DuplicateInRepair`). Never touches `Resource` storage itself —
     /// only rewrites the derived `Index`/`Count` pointers, so it's safe to
     /// re-run with the current correct id list as a no-op. See
-    /// `docs/index-repair.md` for the full repair strategy.
+    /// `contract/docs/index-repair.md` for the full repair strategy.
     pub fn repair_index(env: Env, ids: Vec<String>) -> Result<(), Error> {
         let admin = Self::require_admin(&env)?;
         admin.require_auth();

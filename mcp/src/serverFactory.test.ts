@@ -366,11 +366,11 @@ describe("correlation IDs (#572)", () => {
   it("does not inherit an outer id", async () => {
     const { client } = await connectClient(createZentrixPayServer(behaviour()));
 
-    const result: any = await runWithCorrelationId("mv-outer-0001", () =>
+    const result: any = await runWithCorrelationId("zp-outer-0001", () =>
       client.callTool({ name: "zentrixpay_echo", arguments: {} }),
     );
 
-    expect(result._meta[CORRELATION_META_KEY]).not.toBe("mv-outer-0001");
+    expect(result._meta[CORRELATION_META_KEY]).not.toBe("zp-outer-0001");
   });
 });
 

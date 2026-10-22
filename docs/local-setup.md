@@ -1,108 +1,64 @@
 # Local Setup Guide
 
-This guide will walk you through setting up ZentrixPay from a fresh clone to a running server and web app. ZentrixPay uses **Stellar testnet** — no real funds are needed or at risk.
+This guide takes you from a fresh clone to a running gateway server and web app. ZentrixPay uses **Stellar testnet** — no real funds are needed or at risk.
 
 ## 1. Prerequisites
 
-Before you begin, ensure you have the following installed:
-
 - **Node.js 20+**
-- **pnpm** (`npm i -g pnpm`)
-- **Rust** and the **Stellar CLI** (for smart contracts) — see [Stellar setup docs](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup)
-- A **Supabase** project (free tier) for Postgres and Storage
+- **pnpm** (`corepack enable`, or `npm i -g pnpm`)
+- A **Postgres** database — a local instance, Docker (`docker compose up -d`), or a hosted one such as [Supabase](supabase-setup.md)
 
-## 2. Clone and Install
+## 2. Clone and install
 
 ```bash
-git clone https://github.com/mind-vault-1/mindvault.git
+git clone <your-fork-url> zentrixpay
 cd zentrixpay
-
-# Install all JS/TS workspace packages
 pnpm install
 ```
 
-## 3. Environment Variables & Supabase
-
-ZentrixPay requires several environment variables to run.
+## 3. Environment variables
 
 1. Copy the example file:
    ```bash
    cp server/.env.example server/.env
    ```
-2. In your new `server/.env` file, fill in the following critical details:
-   - **`DATABASE_URL`**: Your Supabase connection string (pooler URL).
-   - **`SUPABASE_URL`** & **`SUPABASE_SERVICE_KEY`**: From your Supabase project dashboard.
-   - **`OPENROUTER_API_KEY`**: Your OpenRouter API key for the AI verification agent.
+2. In `server/.env`, set:
+   - **`DATABASE_URL`** — your Postgres connection string.
+   - **`UPSTREAM_SECRET_KEY`** — 64 hex characters, used to encrypt providers' upstream secrets. Generate one with `openssl rand -hex 32`.
 
-For a full explanation of all variables, refer to the [Server Environment Variables Guide](server-env.md). **Never commit `server/.env`** — it holds secret keys.
+`server/src/config.ts` still validates a few variables left over from the old resource vault (`PAY_TO`, `AGENT_SECRET_KEY`, `VAULT_REGISTRY_CONTRACT_ID`, `REGISTRY_CONTRACT_ID`, `REGISTRY_SECRET_KEY`, `OPENROUTER_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`). The gateway does not use them, so the placeholder values in `server/.env.example` are enough — just don't delete those lines.
 
-## 4. Database Setup
+For every variable, see [Server environment variables](server-env.md). **Never commit `server/.env`.**
 
-Once your `server/.env` is configured with Supabase credentials, generate and run the migrations:
+## 4. Database
+
+Run the migrations:
 
 ```bash
 make migrate
-# Or manually: pnpm db:generate && pnpm db:migrate
 ```
 
-## 5. Stellar Testnet Setup
+## 5. Run
 
-ZentrixPay uses the Stellar testnet for all payments and the vault registry. 
-
-### A. Deploy the vault registry contract
-The smart contract must be deployed so the server can record resources on-chain.
-
-```bash
-# 1. Create and fund a deployer identity
-stellar keys generate deployer --network testnet --fund
-
-# 2. Build the contract
-pnpm contract:build
-
-# 3. Deploy it to testnet
-stellar contract deploy \
-  --wasm contract/target/wasm32v1-none/release/vault_registry.wasm \
-  --source deployer \
-  --network testnet
-```
-Copy the printed contract ID into your `server/.env` file as **`VAULT_REGISTRY_CONTRACT_ID`** and **`REGISTRY_CONTRACT_ID`**. Also, grab your deployer secret key (using `stellar keys show deployer`) and set it as **`REGISTRY_SECRET_KEY`**.
-
-### B. Generate Platform and Agent Wallets
-The system needs two separate testnet wallets: a platform wallet (receives fees) and an agent wallet (pays for verification).
-
-```bash
-make wallets
-```
-*Run this command twice.* Add the first pair's public key to `server/.env` as **`PAY_TO`**, and the second pair's secret key as **`AGENT_SECRET_KEY`**.
-
-### C. Fund Wallets and Add USDC Trustline
-Both wallets require testnet USDC from the Circle faucet.
-
-1. Provide your agent wallet with a USDC trustline:
-   ```bash
-   make setup-usdc
-   ```
-2. Visit the [Circle testnet faucet](https://faucet.circle.com) and fund both your platform (`PAY_TO`) and agent wallet addresses.
-
-> **Having trouble?** See the [Stellar Testnet Funding Guide](stellar-testnet-funding.md) for detailed help.
-
-## 6. Seed and Run
-
-Populate the database with sample catalog resources for local development:
-
-```bash
-make seed
-```
-
-Start both the backend server (on `:4021`) and the web application (on `:5173`):
+Start the server (`:4021`) and the web app (`:5173`):
 
 ```bash
 make dev
 ```
 
-You're all set!
+Check it is up:
+
+```bash
+curl -s http://localhost:4021/health
+```
+
+## 6. Try it end to end
+
+You need a testnet wallet with XLM and USDC for both sides — see the [Stellar testnet funding guide](stellar-testnet-funding.md). Then follow the [Provider Quickstart](provider-quickstart.md) against `http://localhost:4021` to register as a provider, add an API and make your first paid call.
+
+When testing against an upstream on your own machine, set `PROXY_ALLOW_PRIVATE_UPSTREAMS=true` — by default the gateway refuses to proxy to private or loopback addresses.
 
 ## Troubleshooting
 
-- **Wallet Connection Issues**: See [Wallet Connection Troubleshooting](wallet-connection-troubleshooting.md).
-- **x402 Payment/Sign Failures**: See [x402 Payment Troubleshooting](x402-payment-troubleshooting.md).
+- **Wallet connection issues:** [Wallet Connection Troubleshooting](wallet-connection-troubleshooting.md)
+- **x402 payment or signing failures:** [x402 Payment Troubleshooting](x402-payment-troubleshooting.md)
