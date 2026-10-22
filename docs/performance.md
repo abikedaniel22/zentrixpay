@@ -140,3 +140,55 @@ Latency values are in milliseconds; requests/sec is the mean over the run.
 - Warm up before measuring; the helper script discards a short warm-up run.
 - Report the environment table above alongside any new numbers so results stay
   comparable across runs.
+## API catalog substring search
+
+`GET /apis?q=term` filters listed APIs with
+`name ILIKE '%term%' OR description ILIKE '%term%'`, ordered by
+`created_at DESC, id ASC` with `LIMIT`/`OFFSET` (#148). A btree index cannot
+serve a pattern with a leading wildcard, so before migration
+`0011_api_catalog_search_trgm.sql` every search for a rare or missing term read
+the whole `apis` table.
+
+The migration enables `pg_trgm` and adds GIN trigram indexes on `apis.name`
+and `apis.description` (`idx_apis_name_trgm`, `idx_apis_description_trgm`).
+Search semantics are unchanged: same ILIKE pattern, `%`, `_` and `\` still
+escaped and matched literally.
+
+### Measurements
+
+`server/scripts/bench-catalog-search.sql` seeds 200,000 APIs (85% listed, 3%
+archived, many sharing a timestamp) and runs `EXPLAIN (ANALYZE, BUFFERS)` on
+the exact catalog query, before and after adding the indexes. PostgreSQL 16
+(Docker, `postgres:16-alpine`), first page of 20:
+
+| Search term | Without trigram indexes | With trigram indexes |
+| --- | --- | --- |
+| rare (one product code) | Parallel Seq Scan, 4,907 buffers, **451 ms** | Bitmap Index Scan on both trigram indexes, 33 buffers, **0.53 ms** |
+| no match | Parallel Seq Scan, 4,907 buffers, **413 ms** | Bitmap Index Scan on both trigram indexes, 74 buffers, **0.71 ms** |
+| common (`weather`) | Index Scan on `(listed, created_at)` + filter, **0.48 ms** | same plan, **0.31 ms** |
+
+Common terms were already fast: the planner walks the `(listed, created_at)`
+index newest-first and stops after 20 matches. Rare terms and terms with no
+match are where the full scan happened, and those now use the trigram indexes.
+On small catalogs (a few thousand rows) the planner may still choose a
+sequential scan, which is cheaper there.
+
+Run it yourself against a scratch database (it creates and drops its own
+`bench_apis` table):
+
+```bash
+docker run -d --rm --name zp-bench -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:16-alpine
+psql postgres://postgres:postgres@localhost:55432/postgres -f server/scripts/bench-catalog-search.sql
+```
+
+`server/src/services/apiCatalogAndRetention.pg.test.ts` checks the search
+semantics against real Postgres and that the plan for a rare term uses a
+trigram index (set `TEST_DATABASE_URL` to run it).
+
+### Deploying on a large table
+
+The migration uses plain `CREATE INDEX`, which blocks writes to `apis` while it
+builds. On a large production table, create the indexes first with
+`CREATE INDEX CONCURRENTLY` (outside a transaction); the migration's
+`IF NOT EXISTS` statements then do nothing. On Supabase, `pg_trgm` is available
+and can also be enabled from the dashboard.

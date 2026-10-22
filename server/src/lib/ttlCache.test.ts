@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTtlCache } from "./ttlCache.js";
+import type { Counter } from "prom-client";
 import { cacheHits, cacheMisses } from "./metrics.js";
+
+/** Current samples of a counter, read through prom-client's public API. */
+async function samples<T extends string>(counter: Counter<T>) {
+  return (await counter.get()).values.map(({ value, labels }) => ({ value, labels }));
+}
 
 beforeEach(() => {
   cacheHits.reset();
@@ -93,26 +99,20 @@ describe("createTtlCache", () => {
   });
 
   describe("metrics (#284)", () => {
-    it("increments cache_hits_total on get() hit", () => {
+    it("increments cache_hits_total on get() hit", async () => {
       const cache = createTtlCache<string>({ defaultTtlMs: 1000, cacheName: "test" });
       cache.set("k", "v");
       cache.get("k");
-      expect(cacheHits.hashMap["cache:test,"]).toEqual({
-        value: 1,
-        labels: { cache: "test" },
-      });
+      expect(await samples(cacheHits)).toEqual([{ value: 1, labels: { cache: "test" } }]);
     });
 
-    it("increments cache_misses_total on get() miss", () => {
+    it("increments cache_misses_total on get() miss", async () => {
       const cache = createTtlCache<string>({ defaultTtlMs: 1000, cacheName: "test" });
       cache.get("nonexistent");
-      expect(cacheMisses.hashMap["cache:test,"]).toEqual({
-        value: 1,
-        labels: { cache: "test" },
-      });
+      expect(await samples(cacheMisses)).toEqual([{ value: 1, labels: { cache: "test" } }]);
     });
 
-    it("increments cache_misses_total on expired entry", () => {
+    it("increments cache_misses_total on expired entry", async () => {
       const clock = fakeClock();
       const cache = createTtlCache<string>({
         defaultTtlMs: 100,
@@ -122,19 +122,16 @@ describe("createTtlCache", () => {
       cache.set("k", "v");
       clock.advance(100);
       cache.get("k");
-      expect(cacheMisses.hashMap["cache:test,"]).toEqual({
-        value: 1,
-        labels: { cache: "test" },
-      });
+      expect(await samples(cacheMisses)).toEqual([{ value: 1, labels: { cache: "test" } }]);
     });
 
-    it("does not register metrics when cacheName is omitted", () => {
+    it("does not register metrics when cacheName is omitted", async () => {
       const cache = createTtlCache<string>({ defaultTtlMs: 1000 });
       cache.set("k", "v");
       cache.get("k");
       cache.get("missing");
-      expect(Object.keys(cacheHits.hashMap)).toHaveLength(0);
-      expect(Object.keys(cacheMisses.hashMap)).toHaveLength(0);
+      expect(await samples(cacheHits)).toHaveLength(0);
+      expect(await samples(cacheMisses)).toHaveLength(0);
     });
   });
 });

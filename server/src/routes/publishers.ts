@@ -3,6 +3,7 @@ import { apiKeyAuth } from "../middleware/apiKeyAuth.js";
 import { validate } from "../middleware/validate.js";
 import { publisherRegisterSchema } from "../schemas/requests.js";
 import { requestSignatureAuth } from "../middleware/requestSignatureAuth.js";
+import { registerIpRateLimit } from "../middleware/rateLimiters.js";
 import { registerPublisher, rotatePublisherKey } from "../services/publisherService.js";
 import { getPublisherAnalytics } from "../services/apiService.js";
 import { eq } from "drizzle-orm";
@@ -11,8 +12,8 @@ import { publishers } from "../db/schema.js";
 
 const router: RouterType = Router();
 
-// POST /publishers — register a new publisher (public)
-router.post("/publishers", validate(publisherRegisterSchema), async (req, res) => {
+// POST /publishers — register a new publisher (public, IP rate-limited)
+router.post("/publishers", registerIpRateLimit, validate(publisherRegisterSchema), async (req, res) => {
   try {
     const { publisher, apiKey } = await registerPublisher(req.body);
     res.status(201).json({

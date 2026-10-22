@@ -417,6 +417,9 @@ fn full_workflow_emits_exactly_the_documented_events() {
     client.repair_tag_index(&Vec::from_array(&env, [r0.clone(), r1.clone(), r2.clone()])); // -> "retagidx"
     record(&env, &client, &mut observed);
 
+    client.repair_creator_index(&Address::generate(&env), &Vec::new(&env)); // -> "recrtidx"
+    record(&env, &client, &mut observed);
+
     client.set_paused(&admin2, &false); // -> "pause"
     record(&env, &client, &mut observed);
 

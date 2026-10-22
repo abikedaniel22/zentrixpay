@@ -114,6 +114,38 @@ const usdcPrice = z
   .regex(/^\d+(\.\d{1,7})?$/, "price must be a USDC amount with at most 7 decimals")
   .refine((v) => Number(v) > 0, "price must be greater than 0");
 
+const apiPriceRule = z
+  .object({
+    method: z.enum(API_METHODS),
+    pathPattern: z
+      .string()
+      .min(1)
+      .max(512)
+      .refine((path) => path.startsWith("/") && !/[?#\\\r\n]/.test(path), {
+        message: "pathPattern must be an absolute path without query or fragment",
+      }),
+    price: usdcPrice,
+  })
+  .strict();
+
+const apiPriceRules = z
+  .array(apiPriceRule)
+  .max(100)
+  .superRefine((rules, ctx) => {
+    const seen = new Set<string>();
+    rules.forEach((rule, index) => {
+      const key = `${rule.method}:${rule.pathPattern}`;
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "method and pathPattern must be unique",
+          path: [index, "pathPattern"],
+        });
+      }
+      seen.add(key);
+    });
+  });
+
 const stellarAddress = z
   .string()
   .regex(/^G[A-Z2-7]{55}$/, "walletAddress must be a Stellar public key (G...)");
@@ -164,6 +196,23 @@ const upstreamQueryParam = z
 // structure are checked in services/openApiSpec.ts.
 const openapiSpec = z.union([z.string().min(1), z.record(z.string(), z.unknown())]);
 
+// Signed with HMAC-SHA256; the secret is shared with the provider's receiver.
+const webhook = z
+  .object({
+    url: z.url(),
+    secret: z.string().min(16).max(256),
+  })
+  .strict();
+
+// Pinged relative to the upstream URL, like a proxied call to /api/:id<healthPath>.
+const healthPath = z
+  .string()
+  .max(512)
+  .regex(/^\/[^\s#]*$/, "healthPath must start with / and contain no spaces or fragment");
+
+// The upper bound (PROXY_MAX_RESPONSE_BYTES) is enforced by the service.
+const maxResponseBytes = z.number().int().min(1024);
+
 const tagList = z.array(z.string().trim().min(1).max(32).toLowerCase()).max(10);
 
 export const PAYER_LIST_MAX = 500;
@@ -179,6 +228,7 @@ export const createApiSchema = z
     description: z.string().max(2000).optional(),
     upstreamUrl: z.url(),
     price: usdcPrice,
+    priceRules: apiPriceRules.default([]),
     walletAddress: stellarAddress.optional(),
     allowedMethods: z.array(z.enum(API_METHODS)).min(1).default(["GET"]),
     upstreamHeader: upstreamHeader.optional(),
@@ -192,6 +242,10 @@ export const createApiSchema = z
     // Only these wallets may call the API; omit to allow everyone.
     payerAllowlist: payerList.optional(),
     payerDenylist: payerList.default([]),
+    // Issue #30: price of a time-limited access pass (null/omit = passes not offered).
+    passPrice: usdcPrice.optional(),
+    // Issue #32: how many free calls a wallet gets per day before the paywall kicks in.
+    freeCallsPerDay: z.number().int().min(0).default(0),
   })
   .strict();
 
@@ -201,6 +255,7 @@ export const updateApiSchema = z
     description: z.string().max(2000).nullable().optional(),
     upstreamUrl: z.url().optional(),
     price: usdcPrice.optional(),
+    priceRules: apiPriceRules.nullable().optional(),
     walletAddress: stellarAddress.optional(),
     allowedMethods: z.array(z.enum(API_METHODS)).min(1).optional(),
     upstreamHeader: upstreamHeader.nullable().optional(),
@@ -215,6 +270,22 @@ export const updateApiSchema = z
     payerAllowlist: payerList.nullable().optional(),
     payerDenylist: payerList.optional(),
     listed: z.boolean().optional(),
+    // Issue #30: null disables passes; a new price enables / reprices them.
+    passPrice: usdcPrice.nullable().optional(),
+    // Issue #32: 0 disables free calls.
+    freeCallsPerDay: z.number().int().min(0).optional(),
+  })
+  .strict();
+
+export const apiCreditPurchaseSchema = z
+  .object({
+    calls: z.number().int().min(1).max(10_000),
+  })
+  .strict();
+
+export const apiCreditBalanceQuerySchema = z
+  .object({
+    walletAddress: stellarAddress,
   })
   .strict();
 

@@ -11,11 +11,8 @@ import { requestDurationMiddleware } from "./middleware/requestDuration.js";
 import { captureServerException } from "./lib/sentry.js";
 import healthRouter from "./routes/health.js";
 import publisherRouter from "./routes/publishers.js";
-import registryRouter from "./routes/registry.js";
-import resourceRouter from "./routes/resources.js";
-import verifyRouter from "./routes/verify.js";
-import paymentsRouter from "./routes/payments.js";
 import apisRouter from "./routes/apis.js";
+import discoveryRouter from "./routes/discovery.js";
 import docsRouter from "./routes/docs.js";
 import metricsRouter from "./routes/metrics.js";
 
@@ -37,11 +34,8 @@ export function createApp(): Express {
   // Routes
   app.use(healthRouter);
   app.use(publisherRouter);
-  app.use(registryRouter);
-  app.use(resourceRouter);
-  app.use(verifyRouter);
-  app.use(paymentsRouter);
   app.use(apisRouter);
+  app.use(discoveryRouter);
   app.use(metricsRouter);
 
   // OpenAPI spec + Swagger UI (all envs; UI is CDN-based, no extra package needed)

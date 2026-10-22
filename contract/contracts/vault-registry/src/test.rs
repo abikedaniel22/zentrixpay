@@ -4801,6 +4801,9 @@ fn full_workflow_emits_exactly_the_documented_events() {
     client.repair_tag_index(&Vec::from_array(&env, [r0.clone(), r1.clone(), r2.clone()])); // -> "retagidx"
     record(&env, &client, &mut observed);
 
+    client.repair_creator_index(&Address::generate(&env), &Vec::new(&env)); // -> "recrtidx"
+    record(&env, &client, &mut observed);
+
     let settler = Address::generate(&env);
     client.add_settler(&settler); // -> "addsettlr"
     record(&env, &client, &mut observed);
@@ -11227,3 +11230,4 @@ include!("test/memo_hash.rs");
 include!("test/flag_details.rs");
 include!("test/payment_idempotency.rs");
 include!("test/stellar_wave_804_805_806_808.rs");
+include!("test/creator_index_repair.rs");
