@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createId } from "@paralleldrive/cuid2";
 import express, {
   Router,
   type NextFunction,
@@ -59,6 +60,7 @@ import {
   proxyIdempotencyCacheKey,
   type StoredProxyResponse,
 } from "../lib/idempotency.js";
+import { deliverChargedCallWebhook } from "../services/webhookService.js";
 import { decryptSecret } from "../utils/secretBox.js";
 import { getLogger } from "../lib/logger.js";
 import { config, upstreamKeyRing } from "../config.js";
@@ -524,13 +526,9 @@ async function proxyHandler(req: Request, res: Response) {
   // below 400 means the x402 middleware settled the payment.
   res.on("finish", () => {
     const settlement = settlementFrom(res);
-    const charged = res.statusCode < 400;
-    recordApiCall({
-      apiId: api.id,
+    const call = {
+      callId: createId(),
       payerAddress: payerFrom(req, settlement),
-      amount: api.price,
-      charged,
-      txHash: charged ? (settlement.transaction ?? null) : null,
       method: req.method,
       path:
         target.pathname.slice(new URL(api.upstreamUrl).pathname.replace(/\/+$/, "").length) || "/",
@@ -545,6 +543,7 @@ async function proxyHandler(req: Request, res: Response) {
       payerAddress: call.payerAddress,
       amount: api.price,
       charged,
+      txHash: charged ? (settlement.transaction ?? null) : null,
       method: call.method,
       path: call.path,
       responseStatus: call.responseStatus,
