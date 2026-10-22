@@ -1,13 +1,6 @@
-import "dotenv/config";
-import { z } from "zod/v4";
-import {
-  applyNetworkEnvDefaults,
-  resolveStellarNetwork,
-  validateNetworkConfig,
-} from "@zentrixpay/registry-client";
-import { rootLogger } from "./lib/logger.js";
+import dotenv from 'dotenv';
 
-const envWithDefaults = applyNetworkEnvDefaults(process.env);
+dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -87,7 +80,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().optional(),
 
   // Optional HMAC-SHA256 request signatures for publisher mutations (off by default).
-  REQUIRE_REQUEST_SIGNATURE: z.coerce.boolean().default(false),
+  REQUIRE_REQUEST_SIGNATURE: envBoolean(false),
   // Max clock skew for X-Timestamp when signatures are required (default 5 minutes).
   SIGNATURE_MAX_SKEW_MS: z.coerce.number().default(300_000),
 
@@ -166,6 +159,21 @@ const envSchema = z.object({
   WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
   WEBHOOK_RETRY_BASE_MS: z.coerce.number().int().positive().default(1_000),
+
+  // Retention of api_calls rows (#144, docs/api-call-retention.md). Rows older
+  // than API_CALL_RETENTION_DAYS are deleted every API_CALL_RETENTION_INTERVAL_MS,
+  // at most API_CALL_RETENTION_BATCH_SIZE per statement. 0 days keeps rows
+  // forever; otherwise at least 90 days, the reach of the provider time-series.
+  API_CALL_RETENTION_DAYS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .refine((days) => days === 0 || days >= 90, {
+      message: "API_CALL_RETENTION_DAYS must be 0 (keep forever) or at least 90",
+    })
+    .default(180),
+  API_CALL_RETENTION_INTERVAL_MS: z.coerce.number().int().min(0).default(3_600_000),
+  API_CALL_RETENTION_BATCH_SIZE: z.coerce.number().int().min(1).max(10_000).default(1_000),
 });
 
 const parsed = envSchema.safeParse(envWithDefaults);
@@ -178,24 +186,18 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-const stellarNetwork = resolveStellarNetwork(parsed.data.STELLAR_NETWORK);
-const networkIssues = validateNetworkConfig({
-  stellarNetwork,
-  x402Network: parsed.data.NETWORK,
-  sorobanRpcUrl: parsed.data.SOROBAN_RPC_URL,
-  usdcSacContractId: parsed.data.USDC_CONTRACT_ID,
-  registryContractId: parsed.data.VAULT_REGISTRY_CONTRACT_ID,
-});
+function optional(name: string, fallback: string): string {
+  return process.env[name] ?? fallback;
+}
 
-if (networkIssues.length > 0) {
-  rootLogger.error(
-    { event: "config_network_mismatch", issues: networkIssues },
-    "inconsistent Stellar network configuration",
-  );
-  for (const issue of networkIssues) {
-    rootLogger.error({ field: issue.field }, issue.message);
+function optionalInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Environment variable ${name} must be an integer`);
   }
-  process.exit(1);
+  return parsed;
 }
 
 // ── Mainnet safety guard (#51) ────────────────────────────────────────────────

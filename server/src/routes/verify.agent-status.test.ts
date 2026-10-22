@@ -50,9 +50,10 @@ vi.mock("drizzle-orm", async (importOriginal) => {
   const actual = await importOriginal<typeof import("drizzle-orm")>();
   return {
     ...actual,
-    inArray: (column: unknown, values: unknown[]) => {
+    // The mocked db ignores the where clause, so only record the ids.
+    inArray: (_column: unknown, values: unknown[]) => {
       lastResourceIdsArg = values;
-      return actual.inArray(column, values);
+      return {};
     },
   };
 });

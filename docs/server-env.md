@@ -42,6 +42,9 @@ and fill in each value.
 | `GRACEFUL_SHUTDOWN_TIMEOUT_MS` | no | `10000` | Max time to drain in-flight requests on SIGTERM/SIGINT |
 | `IDEMPOTENCY_TTL_MS` | no | `86400000` | How long a publish Idempotency-Key is remembered (24h) |
 | `CATALOG_CACHE_TTL_MS` | no | `10000` | Short-lived cache TTL for catalog/preview reads |
+| `API_CALL_RETENTION_DAYS` | no | `180` | Days an API call record is kept before deletion. `0` keeps records forever; otherwise must be at least `90`. See [api-call-retention.md](api-call-retention.md) |
+| `API_CALL_RETENTION_INTERVAL_MS` | no | `3600000` | How often expired API call records are purged (`0` disables the job) |
+| `API_CALL_RETENTION_BATCH_SIZE` | no | `1000` | Max API call records deleted per statement (1–10000) |
 
 ## Mainnet values
 

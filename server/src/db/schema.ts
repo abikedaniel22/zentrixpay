@@ -1,15 +1,16 @@
 import {
+  check,
   pgTable,
+  serial,
   text,
-  real,
+  timestamp,
   integer,
   boolean,
-  timestamp,
-  pgEnum,
   jsonb,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
 export const resourceTypeEnum = pgEnum("resource_type", ["file", "link"]);
@@ -27,6 +28,12 @@ export const onchainStatusEnum = pgEnum("onchain_status_enum", [
   "registered",
   "failed",
 ]);
+
+export interface ApiPriceRule {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  pathPattern: string;
+  price: string;
+}
 
 // Publishers — humans or AI agents that publish resources
 export const publishers = pgTable("publishers", {
@@ -102,44 +109,20 @@ export const verifications = pgTable("verifications", {
   checkedAt: timestamp("checked_at").defaultNow().notNull(),
 });
 
-// Payments — tracks x402 payments for resources
-export const payments = pgTable(
-  "payments",
-  {
-    id: text("id")
-      .primaryKey()
-      .$defaultFn(() => createId()),
-    resourceId: text("resource_id")
-      .notNull()
-      .references(() => resources.id),
-    payerAddress: text("payer_address").notNull(),
-    recipientAddress: text("recipient_address").notNull(),
-    amount: text("amount").notNull(), // USDC amount
-    paidAt: timestamp("paid_at").defaultNow().notNull(),
-  },
-  (table) => ({
-    // Payment history is queried per payer wallet (#285).
-    payerAddressIdx: index("idx_payments_payer_address").on(table.payerAddress),
-  }),
-);
-
-// APIs — upstream HTTP APIs that providers sell per call through the proxy
 export const apis = pgTable(
   "apis",
   {
-    id: text("id")
-      .primaryKey()
-      .$defaultFn(() => createId()),
-    publisherId: text("publisher_id")
-      .notNull()
-      .references(() => publishers.id),
+    id: serial("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
     // Never exposed publicly: callers must go through the paid proxy.
     upstreamUrl: text("upstream_url").notNull(),
     price: text("price").notNull(), // USDC per call
+    priceRules: jsonb("price_rules").$type<ApiPriceRule[]>().notNull().default([]),
     walletAddress: text("wallet_address").notNull(),
     allowedMethods: jsonb("allowed_methods").$type<string[]>().notNull().default(["GET"]),
+    payerAllowlist: jsonb("payer_allowlist").$type<string[] | null>(),
+    payerDenylist: jsonb("payer_denylist").$type<string[]>().notNull().default([]),
     // Header the proxy adds to every upstream request, e.g. the provider's own
     // API key. The value is AES-256-GCM encrypted (see utils/secretBox.ts).
     upstreamHeaderName: text("upstream_header_name"),
@@ -177,15 +160,13 @@ export const apis = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
-    publisherIdx: index("idx_apis_publisher_id").on(table.publisherId),
-    catalogIdx: index("idx_apis_listed_created_at").on(table.listed, table.createdAt),
-    tagsIdx: index("idx_apis_tags").using("gin", table.tags),
-  }),
+    ownerIdx: index("apis_owner_id_idx").on(table.ownerId),
+    activeIdx: index("apis_active_idx").on(table.active),
+  })
 );
 
-// API calls — one row per proxied call, charged or not
-export const apiCalls = pgTable(
-  "api_calls",
+export const apiCreditBalances = pgTable(
+  "api_credit_balances",
   {
     id: text("id")
       .primaryKey()
@@ -193,25 +174,89 @@ export const apiCalls = pgTable(
     apiId: text("api_id")
       .notNull()
       .references(() => apis.id),
-    payerAddress: text("payer_address").notNull(),
-    amount: text("amount").notNull(), // USDC; only collected when charged
-    charged: boolean("charged").notNull(),
-    method: text("method").notNull(),
-    path: text("path").notNull(),
-    responseStatus: integer("response_status").notNull(),
-    durationMs: integer("duration_ms").notNull(),
-    // Settlement transaction, from the x402 PAYMENT-RESPONSE header; null when not charged.
-    txHash: text("tx_hash"),
+    walletAddress: text("wallet_address").notNull(),
+    balance: integer("balance").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    apiWalletIdx: uniqueIndex("idx_api_credit_balances_api_wallet").on(
+      table.apiId,
+      table.walletAddress,
+    ),
+    nonNegativeBalance: check("api_credit_balances_balance_check", sql`${table.balance} >= 0`),
+  }),
+);
+
+export const apiCreditLedger = pgTable(
+  "api_credit_ledger",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    apiId: text("api_id")
+      .notNull()
+      .references(() => apis.id),
+    walletAddress: text("wallet_address").notNull(),
+    delta: integer("delta").notNull(),
+    entryType: text("entry_type").$type<"purchase" | "spend">().notNull(),
+    reference: text("reference"),
+    requestNonce: text("request_nonce"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
-    refundTxIdx: uniqueIndex("idx_api_calls_refund_tx_hash").on(table.refundTxHash),
-    apiCreatedIdx: index("idx_api_calls_api_id_created_at").on(table.apiId, table.createdAt),
-    payerCreatedIdx: index("idx_api_calls_payer_address_created_at").on(
-      table.payerAddress,
+    purchaseReferenceIdx: uniqueIndex("idx_api_credit_ledger_purchase_reference")
+      .on(table.reference)
+      .where(sql`${table.entryType} = 'purchase'`),
+    spendNonceIdx: uniqueIndex("idx_api_credit_ledger_spend_nonce").on(
+      table.apiId,
+      table.walletAddress,
+      table.requestNonce,
+    ).where(sql`${table.entryType} = 'spend'`),
+    apiWalletCreatedIdx: index("idx_api_credit_ledger_api_wallet_created").on(
+      table.apiId,
+      table.walletAddress,
       table.createdAt,
     ),
+    validEntryType: check(
+      "api_credit_ledger_entry_type_check",
+      sql`${table.entryType} in ('purchase', 'spend')`,
+    ),
   }),
+);
+
+// API calls — one row per proxied call, charged or not
+export const apiCalls = pgTable(
+  "api_calls",
+  {
+    id: serial("id").primaryKey(),
+    apiId: integer("api_id")
+      .notNull()
+      .references(() => apis.id, { onDelete: "cascade" }),
+    method: text("method").notNull(),
+    path: text("path").notNull(),
+    statusCode: integer("status_code"),
+    charged: boolean("charged").notNull().default(false),
+    amount: text("amount"),
+    asset: text("asset"),
+    payer: text("payer"),
+    txHash: text("tx_hash"),
+    settlementTx: text("settlement_tx"),
+    latencyMs: integer("latency_ms"),
+    requestHeaders: jsonb("request_headers"),
+    responseHeaders: jsonb("response_headers"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    apiIdIdx: index("api_calls_api_id_idx").on(table.apiId),
+    createdAtIdx: index("api_calls_created_at_idx").on(table.createdAt),
+    chargedIdx: index("api_calls_charged_idx").on(table.charged),
+    settlementTxIdx: index("api_calls_settlement_tx_idx").on(
+      table.settlementTx
+    ),
+  })
 );
 
 // API passes (#30) — time-limited access tokens purchased via x402.
