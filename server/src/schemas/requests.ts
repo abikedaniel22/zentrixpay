@@ -196,6 +196,23 @@ const upstreamQueryParam = z
 // structure are checked in services/openApiSpec.ts.
 const openapiSpec = z.union([z.string().min(1), z.record(z.string(), z.unknown())]);
 
+// Signed with HMAC-SHA256; the secret is shared with the provider's receiver.
+const webhook = z
+  .object({
+    url: z.url(),
+    secret: z.string().min(16).max(256),
+  })
+  .strict();
+
+// Pinged relative to the upstream URL, like a proxied call to /api/:id<healthPath>.
+const healthPath = z
+  .string()
+  .max(512)
+  .regex(/^\/[^\s#]*$/, "healthPath must start with / and contain no spaces or fragment");
+
+// The upper bound (PROXY_MAX_RESPONSE_BYTES) is enforced by the service.
+const maxResponseBytes = z.number().int().min(1024);
+
 const tagList = z.array(z.string().trim().min(1).max(32).toLowerCase()).max(10);
 
 export const PAYER_LIST_MAX = 500;
