@@ -245,6 +245,7 @@ pub const METHOD_SCHEMA: &[(&str, &str)] = &[
     // ── Index repair ──────────────────────────────────────────────────────
     ("repair_index", "admin"),
     ("repair_tag_index", "admin"),
+    ("repair_creator_index", "admin"),
     // ── Payment receipts ──────────────────────────────────────────────────
     ("record_payment", "settler + payer"),
     ("record_payment_idempotent", "settler + payer"),
@@ -313,7 +314,7 @@ pub const ERROR_SCHEMA: &[(u32, &str, &str)] = &[
     (20, "InvalidVerificationTransition", "The requested `VerificationStatus` transition is not allowed (e.g. same-status no-op, or reverting to `Pending`)."),
     (21, "AlreadyFrozen", "`freeze_metadata` was called on a resource whose metadata is already frozen."),
     (22, "MetadataFrozen", "`update_metadata` was called on a resource whose metadata has been frozen."),
-    (23, "DuplicateInRepair", "`repair_index` received a list with duplicate resource ids."),
+    (23, "DuplicateInRepair", "`repair_index` or `repair_creator_index` received a list with duplicate resource ids."),
     (24, "InvalidTxHash", "A payment or refund `tx_hash` is empty or exceeds `MAX_TX_HASH_LEN` (128 bytes)."),
     (25, "InvalidPaymentAmount", "A payment or refund `amount` is `<= 0`, or a refund window is outside its allowed bounds."),
     (26, "NotModerator", "Caller does not hold the moderator role."),
@@ -426,6 +427,10 @@ pub const EVENT_SCHEMA: &[(&str, &str)] = &[
     ("flagfrc", "(admin: Address, deadline: u32)"),
     ("nomemo", "(receipt_id: String, tx_hash: String)"),
     ("retagidx", "new_count: u32"),
+    (
+        "recrtidx",
+        "CreatorIndexRepair { creator, old_count, new_count, listed_count } (topic carries creator: Address)",
+    ),
     ("reactive", "resource id"),
     (
         "setfee",
@@ -570,6 +575,20 @@ pub struct FlagDetails {
     pub reason_hash: Option<String>,
     /// Moderator whose flag, unflag, or reason hash write came last, if any.
     pub last_moderator: Option<Address>,
+}
+
+/// Payload of the `recrtidx` event emitted by `repair_creator_index`.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CreatorIndexRepair {
+    pub creator: Address,
+    /// `creator_resource_count(creator)` before the repair.
+    pub old_count: u32,
+    /// `creator_resource_count(creator)` after the repair (the list length).
+    pub new_count: u32,
+    /// `creator_listed_count(creator)` after the repair, recomputed from the
+    /// canonical state of every repaired resource.
+    pub listed_count: u32,
 }
 
 #[contracttype]
@@ -3189,6 +3208,86 @@ impl VaultRegistry {
 
         env.events()
             .publish((symbol_short!("reindex"), old_count), len);
+        Ok(())
+    }
+
+    /// Rebuild `creator`'s derived indexes — `CreatorResources` (backing
+    /// `list_by_creator`/`list_by_creator_page`), `CreatorCount` (backing
+    /// `creator_resource_count`) and `CreatorListedCount` (backing
+    /// `creator_listed_count`) — from an authoritative, admin-supplied ordered
+    /// list of resource ids. The creator-scoped counterpart of `repair_index`;
+    /// see `docs/index-repair.md`.
+    ///
+    /// Soroban cannot enumerate storage, so the contract cannot discover a
+    /// creator's resources by itself: the operator supplies the list (from
+    /// `register`/`transfer`/`tombstone` event replay or the DB) and the
+    /// contract checks every entry against canonical `Resource` storage:
+    ///
+    /// - every id must be a registered resource (`NotFound` otherwise),
+    /// - whose canonical `creator` is `creator` and which is not tombstoned
+    ///   (`NotFound` otherwise — it is not one of this creator's resources),
+    /// - and the list must not contain duplicates (`DuplicateInRepair`).
+    ///
+    /// Validation runs over the whole list before any write, so a rejected
+    /// call changes nothing. `Resource` entries are only read, never written.
+    /// The listed count is recomputed from each resource's state rather than
+    /// trusted from the old counter; the global `ListedCount`/`Count` are not
+    /// touched. An empty list is valid and clears the creator's indexes.
+    /// Re-running with the current correct list rewrites the same values, so
+    /// repeated repairs are idempotent.
+    ///
+    /// Emits `recrtidx` with topic `creator` and a [`CreatorIndexRepair`]
+    /// payload.
+    ///
+    /// Errors: [`Error::AdminNotSet`], [`Error::ContractPaused`],
+    /// [`Error::NotFound`], [`Error::DuplicateInRepair`].
+    pub fn repair_creator_index(env: Env, creator: Address, ids: Vec<String>) -> Result<(), Error> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+        Self::require_not_paused(&env)?;
+
+        let len = ids.len();
+        let mut listed_count: u32 = 0;
+        for i in 0..len {
+            let id = ids.get(i).unwrap();
+            let resource: Resource = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Resource(id.clone()))
+                .ok_or(Error::NotFound)?;
+            if resource.creator != creator || resource.state == ResourceState::Tombstoned {
+                return Err(Error::NotFound);
+            }
+            for j in (i + 1)..len {
+                if id == ids.get(j).unwrap() {
+                    return Err(Error::DuplicateInRepair);
+                }
+            }
+            if resource.state == ResourceState::Listed {
+                listed_count += 1;
+            }
+        }
+
+        let old_count = Self::creator_count(&env, &creator);
+
+        let key = Self::creator_key(&env, &creator);
+        env.storage().persistent().set(&key, &ids);
+        Self::bump_persistent(&env, &key);
+        Self::set_creator_count(&env, &creator, len);
+        env.storage()
+            .instance()
+            .set(&DataKey::CreatorListedCount(creator.clone()), &listed_count);
+        Self::bump_instance(&env);
+
+        env.events().publish(
+            (symbol_short!("recrtidx"), creator.clone()),
+            CreatorIndexRepair {
+                creator,
+                old_count,
+                new_count: len,
+                listed_count,
+            },
+        );
         Ok(())
     }
 

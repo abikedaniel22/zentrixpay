@@ -12,6 +12,10 @@ import { beginShutdown, whenDrained, inFlightCount } from "./lib/lifecycle.js";
 import { pgClient } from "./db/client.js";
 import { startPoolMetrics, stopPoolMetrics } from "./db/client.js";
 import { startHealthCheckWorker, stopHealthCheckWorker } from "./workers/healthCheckWorker.js";
+import {
+  startApiCallRetentionWorker,
+  stopApiCallRetentionWorker,
+} from "./workers/apiCallRetentionWorker.js";
 import { closeRateLimitStore } from "./lib/rateLimit/index.js";
 
 initSentry();
@@ -30,6 +34,7 @@ const server: Server = app.listen(config.PORT, () => {
   );
 
   startHealthCheckWorker();
+  startApiCallRetentionWorker();
   startPoolMetrics();
 });
 
@@ -40,6 +45,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   shuttingDown = true;
 
   stopHealthCheckWorker();
+  stopApiCallRetentionWorker();
   stopPoolMetrics();
 
   // Stop passing readiness checks so load balancers drain us before we close.

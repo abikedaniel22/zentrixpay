@@ -156,6 +156,21 @@ const envSchema = z.object({
   WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
   WEBHOOK_RETRY_BASE_MS: z.coerce.number().int().positive().default(1_000),
+
+  // Retention of api_calls rows (#144, docs/api-call-retention.md). Rows older
+  // than API_CALL_RETENTION_DAYS are deleted every API_CALL_RETENTION_INTERVAL_MS,
+  // at most API_CALL_RETENTION_BATCH_SIZE per statement. 0 days keeps rows
+  // forever; otherwise at least 90 days, the reach of the provider time-series.
+  API_CALL_RETENTION_DAYS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .refine((days) => days === 0 || days >= 90, {
+      message: "API_CALL_RETENTION_DAYS must be 0 (keep forever) or at least 90",
+    })
+    .default(180),
+  API_CALL_RETENTION_INTERVAL_MS: z.coerce.number().int().min(0).default(3_600_000),
+  API_CALL_RETENTION_BATCH_SIZE: z.coerce.number().int().min(1).max(10_000).default(1_000),
 });
 
 const parsed = envSchema.safeParse(envWithDefaults);

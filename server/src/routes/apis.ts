@@ -453,8 +453,10 @@ async function proxyHandler(req: Request, res: Response) {
         (res.locals.creditPayer as string | undefined) ?? payerFrom(req, settlement),
       amount: (res.locals.apiCallPrice as string | undefined) ?? api.price,
       method: req.method,
-      path:
+      // Stored minimized: identifiers and the query string are dropped (#144).
+      path: minimizeCallPath(
         target.pathname.slice(new URL(api.upstreamUrl).pathname.replace(/\/+$/, "").length) || "/",
+      ),
       responseStatus: res.statusCode,
       durationMs: Date.now() - started,
     }).catch((err) =>
