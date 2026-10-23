@@ -1,51 +1,68 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { fetchApis, type PublicApi } from "../api/apis.js";
 import { ErrorBanner } from "./ErrorBanner.js";
 
-const PAGE_SIZE = 20;
+export const CATALOG_PAGE_SIZE = 20;
 
 interface Props {
   onTry: (api: PublicApi) => void;
-  onView: (api: PublicApi) => void;
+  onView?: (api: PublicApi) => void;
   onCopy: (text: string) => void;
 }
 
-export function ApiCatalog({ onTry, onCopy }: Props) {
+/** Append a page, skipping APIs already shown (offset paging can shift when APIs are added). */
+function mergePage(current: PublicApi[], page: PublicApi[]): PublicApi[] {
+  const seen = new Set(current.map((api) => api.id));
+  return [...current, ...page.filter((api) => !seen.has(api.id))];
+}
+
+export function ApiCatalog({ onTry, onView, onCopy }: Props) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [items, setItems] = useState<PublicApi[]>([]);
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [status, setStatus] = useState<"loading" | "idle" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // The search the shown items belong to, and where its next page starts.
+  // Kept in a ref so "Load more" always pages the same query as the list on
+  // screen, even while the user is typing a new one.
+  const pagingRef = useRef({ query: "", nextOffset: 0 });
+  // Aborts whichever request is in flight when the search changes.
   const abortRef = useRef<AbortController | null>(null);
 
-  // Debounce the search query
   useEffect(() => {
-    const id = setTimeout(() => setDebounced(query), 250);
+    const id = setTimeout(() => setDebounced(query.trim()), 250);
     return () => clearTimeout(id);
   }, [query]);
 
-  // Reset and load first page whenever the query changes
+  // First page for each search.
   useEffect(() => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    pagingRef.current = { query: debounced, nextOffset: 0 };
     setItems([]);
-    setOffset(0);
     setHasMore(false);
     setStatus("loading");
     setError(null);
+    setMoreError(null);
+    setLoadingMore(false);
 
-    fetchApis(debounced, ctrl.signal, PAGE_SIZE, 0)
+    // One extra row tells us whether another page exists, so there is no
+    // "Load more" button that leads to an empty page.
+    fetchApis(debounced, ctrl.signal, CATALOG_PAGE_SIZE + 1, 0)
       .then((page) => {
         if (ctrl.signal.aborted) return;
-        setItems(page);
-        setHasMore(page.length === PAGE_SIZE);
-        setOffset(PAGE_SIZE);
+        setItems(mergePage([], page.slice(0, CATALOG_PAGE_SIZE)));
+        setHasMore(page.length > CATALOG_PAGE_SIZE);
+        pagingRef.current.nextOffset = CATALOG_PAGE_SIZE;
         setStatus("idle");
       })
       .catch((err) => {
@@ -55,44 +72,30 @@ export function ApiCatalog({ onTry, onCopy }: Props) {
       });
 
     return () => ctrl.abort();
-  }, [debounced]);
+  }, [debounced, reloadKey]);
 
   async function loadMore() {
+    if (loadingMore) return;
+    const ctrl = abortRef.current;
+    const { query: pageQuery, nextOffset } = pagingRef.current;
     setLoadingMore(true);
+    setMoreError(null);
     try {
-      const page = await fetchApis(debounced, undefined, PAGE_SIZE, offset);
-      setItems((prev) => [...prev, ...page]);
-      setHasMore(page.length === PAGE_SIZE);
-      setOffset((prev) => prev + PAGE_SIZE);
+      const page = await fetchApis(pageQuery, ctrl?.signal, CATALOG_PAGE_SIZE + 1, nextOffset);
+      // The search changed while this page was loading: drop it.
+      if (ctrl?.signal.aborted || pagingRef.current.query !== pageQuery) return;
+      setItems((prev) => mergePage(prev, page.slice(0, CATALOG_PAGE_SIZE)));
+      setHasMore(page.length > CATALOG_PAGE_SIZE);
+      pagingRef.current.nextOffset = nextOffset + CATALOG_PAGE_SIZE;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load more APIs");
+      if (ctrl?.signal.aborted) return;
+      setMoreError(err instanceof Error ? err.message : "Failed to load more APIs");
     } finally {
-      setLoadingMore(false);
+      if (!ctrl?.signal.aborted) setLoadingMore(false);
     }
   }
 
-  function retry() {
-    setDebounced((d) => d); // trigger the effect
-    setStatus("idle");
-    setError(null);
-  }
-
-  useEffect(() => {
-    if (!data) return;
-    setKnownTags((prev) => {
-      const next = new Set(prev);
-      for (const api of data) for (const tag of api.tags) next.add(tag);
-      return next.size === prev.length ? prev : [...next].sort();
-    });
-  }, [data]);
-
-  function toggleTag(tag: string) {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag].sort(),
-    );
-  }
-
-  const filtering = Boolean(debounced) || selectedTags.length > 0;
+  const loaded = status === "idle";
 
   return (
     <section aria-labelledby="catalog-heading">
@@ -110,43 +113,14 @@ export function ApiCatalog({ onTry, onCopy }: Props) {
         />
       </div>
 
-      {knownTags.length > 0 && (
-        <div
-          className="mb-4 flex flex-wrap items-center gap-1.5"
-          role="group"
-          aria-label="Filter by tag"
-        >
-          {knownTags.map((tag) => {
-            const on = selectedTags.includes(tag);
-            return (
-              <button
-                key={tag}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggleTag(tag)}
-                className={`${chipBase} ${on ? chipOn : chipOff}`}
-              >
-                #{tag}
-              </button>
-            );
-          })}
-          {selectedTags.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setSelectedTags([])}
-              className="ml-1 text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              Clear tags
-            </button>
-          )}
-        </div>
-      )}
-
       {status === "error" && (
-        <ErrorBanner message={error ?? t("catalog.heading")} onRetry={retry} />
+        <ErrorBanner
+          message={error ?? "Failed to load APIs"}
+          onRetry={() => setReloadKey((key) => key + 1)}
+        />
       )}
 
-      {status === "loading" && items.length === 0 && (
+      {status === "loading" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-40 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
@@ -154,13 +128,15 @@ export function ApiCatalog({ onTry, onCopy }: Props) {
         </div>
       )}
 
-      {status !== "loading" && items.length === 0 && !error && (
+      {loaded && items.length === 0 && (
         <p className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          {debounced ? `No APIs match "${debounced}".` : "No APIs are listed yet."}
+          {debounced
+            ? t("catalog.empty_no_match", { query: debounced })
+            : t("catalog.empty_no_apis")}
         </p>
       )}
 
-      {items.length > 0 && (
+      {loaded && items.length > 0 && (
         <>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((api) => (
@@ -174,7 +150,7 @@ export function ApiCatalog({ onTry, onCopy }: Props) {
                     {api.price} USDC
                     <span className="font-normal text-indigo-500 dark:text-indigo-400">
                       {" "}
-                      / call
+                      {t("catalog.per_call")}
                     </span>
                   </span>
                 </div>
@@ -206,30 +182,49 @@ export function ApiCatalog({ onTry, onCopy }: Props) {
                     onClick={() => onTry(api)}
                     className="flex-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
                   >
-                    Try it
+                    {t("catalog.try_it")}
                   </button>
+                  {onView && (
+                    <button
+                      onClick={() => onView(api)}
+                      aria-label={`Details for ${api.name}`}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      Details
+                    </button>
+                  )}
                   <button
                     onClick={() => onCopy(api.proxyUrl)}
                     className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
                   >
-                    Copy URL
+                    {t("catalog.copy_url")}
                   </button>
                 </div>
               </li>
             ))}
           </ul>
 
-          {hasMore && (
-            <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <p aria-live="polite" className="text-xs text-gray-500 dark:text-gray-400">
+              {hasMore
+                ? `Showing ${items.length} APIs`
+                : `Showing all ${items.length} ${items.length === 1 ? "API" : "APIs"}`}
+            </p>
+            {moreError && (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                {moreError}
+              </p>
+            )}
+            {hasMore && (
               <button
-                onClick={loadMore}
+                onClick={() => void loadMore()}
                 disabled={loadingMore}
                 className="rounded-lg border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                {loadingMore ? "Loading…" : "Load more"}
+                {loadingMore ? "Loading…" : moreError ? "Retry" : "Load more"}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </>
       )}
     </section>

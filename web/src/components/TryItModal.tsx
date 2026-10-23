@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { callPaidApi } from "../lib/x402Call.js";
-import type { PublicApi } from "../api/apis.js";
+import type { HttpMethod, PublicApi } from "../api/apis.js";
+import {
+  DEFAULT_REQUEST_CONTENT_TYPE,
+  methodAllowsBody,
+  prepareRequestBody,
+  REQUEST_CONTENT_TYPES,
+  type RequestContentType,
+} from "../lib/requestBody.js";
 import type { WalletState } from "../hooks/useWalletConnection.js";
 
 interface Props {
@@ -15,6 +22,13 @@ interface HeaderRow {
   value: string;
 }
 
+const BODY_PLACEHOLDERS: Record<RequestContentType, string> = {
+  "application/json": '{"key":"value"}',
+  "text/plain": "Any text",
+  "application/x-www-form-urlencoded": "key=value&other=1",
+  "application/xml": "<request><key>value</key></request>",
+};
+
 interface CallResult {
   status: number;
   charged: boolean;
@@ -28,9 +42,10 @@ export function TryItModal({ api, wallet, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const nextHeaderId = useRef(1);
-  const [method, setMethod] = useState(api.allowedMethods[0] ?? "GET");
+  const [method, setMethod] = useState<HttpMethod>(api.allowedMethods[0] ?? "GET");
   const [path, setPath] = useState("/");
   const [body, setBody] = useState("");
+  const [contentType, setContentType] = useState<RequestContentType>(DEFAULT_REQUEST_CONTENT_TYPE);
   const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [result, setResult] = useState<CallResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,10 +86,7 @@ export function TryItModal({ api, wallet, onClose }: Props) {
   }, [onClose, sending]);
 
   function addHeader() {
-    setHeaders((current) => [
-      ...current,
-      { id: nextHeaderId.current++, name: "", value: "" },
-    ]);
+    setHeaders((current) => [...current, { id: nextHeaderId.current++, name: "", value: "" }]);
   }
 
   function updateHeader(id: number, key: "name" | "value", value: string) {
@@ -104,13 +116,20 @@ export function TryItModal({ api, wallet, onClose }: Props) {
       return;
     }
 
+    // Checked before paying, so a malformed body never costs a call.
+    const prepared = prepareRequestBody(method, contentType, body, requestHeaders);
+    if (!prepared.ok) {
+      setError(prepared.error);
+      return;
+    }
+
     setSending(true);
     try {
       const response = await callPaidApi(api.proxyUrl, wallet.address, {
         method,
         path,
-        body: method === "GET" || !body ? undefined : body,
-        headers: requestHeaders,
+        body: prepared.body,
+        headers: prepared.headers,
         price: api.price,
       });
       setResult(response);
@@ -145,12 +164,13 @@ export function TryItModal({ api, wallet, onClose }: Props) {
       >
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
-            <h2 id="try-it-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h2
+              id="try-it-title"
+              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+            >
               Try {api.name}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {api.price} USDC per call
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{api.price} USDC per call</p>
           </div>
           <button
             type="button"
@@ -169,7 +189,7 @@ export function TryItModal({ api, wallet, onClose }: Props) {
               Method
               <select
                 value={method}
-                onChange={(event) => setMethod(event.target.value)}
+                onChange={(event) => setMethod(event.target.value as HttpMethod)}
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-900"
               >
                 {api.allowedMethods.map((allowedMethod) => (
@@ -220,7 +240,9 @@ export function TryItModal({ api, wallet, onClose }: Props) {
                 <button
                   type="button"
                   aria-label={`Remove header ${index + 1}`}
-                  onClick={() => setHeaders((current) => current.filter((item) => item.id !== header.id))}
+                  onClick={() =>
+                    setHeaders((current) => current.filter((item) => item.id !== header.id))
+                  }
                   className="rounded-lg border border-gray-300 px-3 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   Remove
@@ -236,17 +258,42 @@ export function TryItModal({ api, wallet, onClose }: Props) {
             </button>
           </fieldset>
 
-          {method !== "GET" && (
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-              Request body
-              <textarea
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-                rows={5}
-                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm dark:border-gray-600 dark:bg-gray-900"
-                placeholder='{"key":"value"}'
-              />
-            </label>
+          {methodAllowsBody(method) ? (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Content type
+                <select
+                  value={contentType}
+                  onChange={(event) => setContentType(event.target.value as RequestContentType)}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-900 sm:w-64"
+                >
+                  {REQUEST_CONTENT_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label} ({type.value})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Request body
+                <textarea
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  rows={5}
+                  aria-describedby="try-body-hint"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm dark:border-gray-600 dark:bg-gray-900"
+                  placeholder={BODY_PLACEHOLDERS[contentType]}
+                />
+              </label>
+              <p id="try-body-hint" className="text-xs text-gray-500 dark:text-gray-400">
+                Sent exactly as typed. A Content-Type set under request headers overrides this
+                choice. Leave empty to send no body.
+              </p>
+            </div>
+          ) : (
+            <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+              GET requests are sent without a body. Put parameters in the path and query.
+            </p>
           )}
 
           {wallet.status !== "connected" && (
@@ -259,7 +306,10 @@ export function TryItModal({ api, wallet, onClose }: Props) {
           )}
 
           {error && (
-            <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            <p
+              role="alert"
+              className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+            >
               {error}
             </p>
           )}
@@ -276,7 +326,10 @@ export function TryItModal({ api, wallet, onClose }: Props) {
         </form>
 
         {result && (
-          <section aria-label="Response" className="mt-5 space-y-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <section
+            aria-label="Response"
+            className="mt-5 space-y-3 border-t border-gray-200 pt-4 dark:border-gray-700"
+          >
             <div className="flex flex-wrap items-center gap-3">
               <span
                 className={`rounded px-2 py-1 text-sm font-semibold ${

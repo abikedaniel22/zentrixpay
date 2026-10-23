@@ -110,9 +110,7 @@ function proxyOperation(method: (typeof PROXY_METHODS)[number], withPath: boolea
 
 function proxyPathItem(withPath: boolean) {
   const item: Record<string, Json | Json[]> = {
-    parameters: withPath
-      ? [paramRef("ApiId"), paramRef("UpstreamPath")]
-      : [paramRef("ApiId")],
+    parameters: withPath ? [paramRef("ApiId"), paramRef("UpstreamPath")] : [paramRef("ApiId")],
   };
   for (const m of PROXY_METHODS) item[m] = proxyOperation(m, withPath);
   return item;
@@ -212,8 +210,7 @@ export const openApiSpec: OpenApiDocument = {
         name: "X-Signature",
         in: "header",
         required: false,
-        description:
-          "HMAC-SHA256 request signature. Required when request signatures are enabled.",
+        description: "HMAC-SHA256 request signature. Required when request signatures are enabled.",
         schema: { type: "string" },
       },
     },
@@ -822,6 +819,63 @@ export const openApiSpec: OpenApiDocument = {
         },
       },
     },
+    "/apis/{id}/test-upstream": {
+      parameters: [paramRef("ApiId")],
+      post: {
+        tags: ["API management"],
+        summary: "Test the saved upstream configuration",
+        description:
+          "Sends one GET to the upstream (healthPath when set, otherwise upstreamUrl) with the " +
+          "saved secret header and query parameter. No payment is requested or settled. The " +
+          "wait is capped at 10 seconds and the response body is never read. Returns status, " +
+          "latency and content type only. Limited to 10 tests per minute per publisher.",
+        operationId: "testApiUpstream",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [paramRef("RequestTimestamp"), paramRef("RequestSignature")],
+        responses: {
+          "200": {
+            description: "Diagnostics for the test request.",
+            content: json({
+              type: "object",
+              required: ["apiId", "ok", "status", "latencyMs", "error", "charged", "testedAt"],
+              properties: {
+                apiId: { type: "integer" },
+                ok: { type: "boolean" },
+                status: { type: "integer", nullable: true },
+                latencyMs: { type: "integer" },
+                contentType: { type: "string", nullable: true },
+                request: {
+                  type: "object",
+                  properties: {
+                    method: { type: "string", enum: ["GET"] },
+                    path: { type: "string" },
+                    usedHeaderSecret: { type: "boolean" },
+                    usedQuerySecret: { type: "boolean" },
+                  },
+                },
+                error: {
+                  type: "object",
+                  nullable: true,
+                  properties: {
+                    kind: {
+                      type: "string",
+                      enum: ["blocked", "timeout", "too_large", "network", "config"],
+                    },
+                    message: { type: "string" },
+                  },
+                },
+                diagnosis: { type: "string" },
+                charged: { type: "boolean", enum: [false] },
+                testedAt: { type: "string", format: "date-time" },
+              },
+            }),
+          },
+          "401": responseRef("Unauthorized"),
+          "404": responseRef("NotFound"),
+          "429": responseRef("TooManyRequests"),
+        },
+      },
+    },
     "/apis/{id}/stats": {
       parameters: [paramRef("ApiId")],
       get: {
@@ -932,7 +986,10 @@ export const openApiSpec: OpenApiDocument = {
         operationId: "buyAccessPass",
         security: [{}, { X402Payment: [] }],
         responses: {
-          "200": { description: "A pass is already active.", content: json(schemaRef("AccessPass")) },
+          "200": {
+            description: "A pass is already active.",
+            content: json(schemaRef("AccessPass")),
+          },
           "201": { description: "Pass activated.", content: json(schemaRef("AccessPass")) },
           "402": responseRef("PaymentRequired"),
           "404": responseRef("NotFound"),

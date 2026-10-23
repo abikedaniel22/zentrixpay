@@ -1,5 +1,6 @@
 import {
   check,
+  pgEnum,
   pgTable,
   serial,
   text,
@@ -43,6 +44,10 @@ export const apis = pgTable(
   "apis",
   {
     id: serial("id").primaryKey(),
+    // Owning provider (migration 0009_api_proxy.sql).
+    publisherId: text("publisher_id")
+      .notNull()
+      .references(() => publishers.id),
     name: text("name").notNull(),
     description: text("description"),
     // Never exposed publicly: callers must go through the paid proxy.
@@ -90,9 +95,10 @@ export const apis = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
-    ownerIdx: index("apis_owner_id_idx").on(table.ownerId),
-    activeIdx: index("apis_active_idx").on(table.active),
-  })
+    // Match the indexes created in migration 0009_api_proxy.sql.
+    publisherIdx: index("idx_apis_publisher_id").on(table.publisherId),
+    listedCreatedAtIdx: index("idx_apis_listed_created_at").on(table.listed, table.createdAt),
+  }),
 );
 
 export const apiCreditBalances = pgTable(
@@ -137,11 +143,9 @@ export const apiCreditLedger = pgTable(
     purchaseReferenceIdx: uniqueIndex("idx_api_credit_ledger_purchase_reference")
       .on(table.reference)
       .where(sql`${table.entryType} = 'purchase'`),
-    spendNonceIdx: uniqueIndex("idx_api_credit_ledger_spend_nonce").on(
-      table.apiId,
-      table.walletAddress,
-      table.requestNonce,
-    ).where(sql`${table.entryType} = 'spend'`),
+    spendNonceIdx: uniqueIndex("idx_api_credit_ledger_spend_nonce")
+      .on(table.apiId, table.walletAddress, table.requestNonce)
+      .where(sql`${table.entryType} = 'spend'`),
     apiWalletCreatedIdx: index("idx_api_credit_ledger_api_wallet_created").on(
       table.apiId,
       table.walletAddress,
@@ -175,18 +179,14 @@ export const apiCalls = pgTable(
     requestHeaders: jsonb("request_headers"),
     responseHeaders: jsonb("response_headers"),
     error: text("error"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     apiIdIdx: index("api_calls_api_id_idx").on(table.apiId),
     createdAtIdx: index("api_calls_created_at_idx").on(table.createdAt),
     chargedIdx: index("api_calls_charged_idx").on(table.charged),
-    settlementTxIdx: index("api_calls_settlement_tx_idx").on(
-      table.settlementTx
-    ),
-  })
+    settlementTxIdx: index("api_calls_settlement_tx_idx").on(table.settlementTx),
+  }),
 );
 
 // API passes (#30) — time-limited access tokens purchased via x402.
