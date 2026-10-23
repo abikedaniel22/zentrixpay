@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TryItModal } from "./TryItModal.js";
+import { callPaidApi } from "../lib/x402Call.js";
 import type { PublicApi } from "../api/apis.js";
 import type { WalletState } from "../hooks/useWalletConnection.js";
 
@@ -156,5 +157,121 @@ describe("TryItModal – accessibility", () => {
       connectedWallet.address,
       expect.objectContaining({ headers: { "x-tenant-key": "tenant-123" } }),
     );
+  });
+});
+
+describe("TryItModal – request content types (#145)", () => {
+  const okResponse = {
+    status: 200,
+    charged: true,
+    price: "0.01",
+    contentType: "application/json",
+    body: { ok: true },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(callPaidApi).mockResolvedValue(okResponse);
+  });
+
+  function renderConnected() {
+    render(<TryItModal api={api} wallet={connectedWallet} onClose={vi.fn()} />);
+  }
+
+  async function choosePost() {
+    await userEvent.selectOptions(screen.getByLabelText("Method"), "POST");
+  }
+
+  it("explains that GET sends no body and sends none", async () => {
+    renderConnected();
+    expect(screen.queryByLabelText("Request body")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Content type")).not.toBeInTheDocument();
+    expect(screen.getByText(/GET requests are sent without a body/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    const options = vi.mocked(callPaidApi).mock.calls[0][2];
+    expect(options.method).toBe("GET");
+    expect(options.body).toBeUndefined();
+    expect(options.headers).toEqual({});
+  });
+
+  it("does not send a body typed before switching back to GET", async () => {
+    renderConnected();
+    await choosePost();
+    await userEvent.type(screen.getByLabelText("Request body"), "hello");
+    await userEvent.selectOptions(screen.getByLabelText("Method"), "GET");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(vi.mocked(callPaidApi).mock.calls[0][2].body).toBeUndefined();
+  });
+
+  it("sends a JSON body verbatim with a JSON content type", async () => {
+    renderConnected();
+    await choosePost();
+    const json = '{"city": "Lagos",  "days": 3}';
+    // userEvent treats { and [ as key descriptors, so paste the text instead.
+    await userEvent.click(screen.getByLabelText("Request body"));
+    await userEvent.paste(json);
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(callPaidApi).toHaveBeenCalledWith(
+      api.proxyUrl,
+      connectedWallet.address,
+      expect.objectContaining({
+        method: "POST",
+        body: json,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  });
+
+  it("blocks invalid JSON before paying", async () => {
+    renderConnected();
+    await choosePost();
+    await userEvent.click(screen.getByLabelText("Request body"));
+    await userEvent.paste("{not json");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("not valid JSON");
+    expect(callPaidApi).not.toHaveBeenCalled();
+  });
+
+  it("sends a form body as typed, without JSON encoding", async () => {
+    renderConnected();
+    await choosePost();
+    await userEvent.selectOptions(
+      screen.getByLabelText("Content type"),
+      "application/x-www-form-urlencoded",
+    );
+    await userEvent.type(screen.getByLabelText("Request body"), "city=Lagos&days=3");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    const options = vi.mocked(callPaidApi).mock.calls[0][2];
+    expect(options.body).toBe("city=Lagos&days=3");
+    expect(options.headers).toEqual({ "content-type": "application/x-www-form-urlencoded" });
+  });
+
+  it("sends plain text that is not JSON", async () => {
+    renderConnected();
+    await choosePost();
+    await userEvent.selectOptions(screen.getByLabelText("Content type"), "text/plain");
+    await userEvent.type(screen.getByLabelText("Request body"), "just some text");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    const options = vi.mocked(callPaidApi).mock.calls[0][2];
+    expect(options.body).toBe("just some text");
+    expect(options.headers).toEqual({ "content-type": "text/plain" });
+  });
+
+  it("lets a Content-Type header override the selector", async () => {
+    renderConnected();
+    await choosePost();
+    await userEvent.click(screen.getByRole("button", { name: "Add header" }));
+    await userEvent.type(screen.getByLabelText("Header name 1"), "Content-Type");
+    await userEvent.type(screen.getByLabelText("Header value 1"), "text/csv");
+    await userEvent.type(screen.getByLabelText("Request body"), "a,b\n1,2");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    const options = vi.mocked(callPaidApi).mock.calls[0][2];
+    expect(options.body).toBe("a,b\n1,2");
+    expect(options.headers).toEqual({ "content-type": "text/csv" });
   });
 });

@@ -3,6 +3,7 @@ import { ExactStellarScheme } from "@x402/stellar";
 import type { PaymentRequirements, PaymentResponse } from "@x402/core/types";
 import { createFreighterX402Client } from "./x402Buy.js";
 import { explorerTxUrl } from "./stellarExplorer.js";
+import { findHeader } from "./requestBody.js";
 
 /**
  * Network identifier for Stellar testnet, as expected by @x402/stellar.
@@ -42,7 +43,11 @@ export function createX402Client(secretKey: string): x402Client {
  * - Preserves any query string already present on the path.
  * - Leaves absolute URLs untouched.
  */
-export function callUrl(baseUrl: string, path: string, query?: Record<string, string | number | boolean>): string {
+export function callUrl(
+  baseUrl: string,
+  path: string,
+  query?: Record<string, string | number | boolean>,
+): string {
   const isAbsolute = /^https?:\/\//i.test(path);
   const base = baseUrl.replace(/\/+$/, "");
   const suffix = path.replace(/^\/+/, "");
@@ -63,8 +68,10 @@ export function callUrl(baseUrl: string, path: string, query?: Record<string, st
 /**
  * Perform an x402-paid HTTP request against a ZentrixPay API endpoint.
  *
- * For non-GET requests a JSON body is sent with a matching Content-Type
- * header. GET requests are sent without a body or Content-Type.
+ * GET requests are sent without a body. A string body is sent exactly as
+ * given; Content-Type is only defaulted (to JSON) for non-string bodies,
+ * which are JSON-encoded. A Content-Type the caller set, in any letter case,
+ * is never overwritten.
  */
 export async function x402Call(
   client: x402Client,
@@ -84,8 +91,14 @@ export async function x402Call(
   let body: string | undefined;
 
   if (method !== "GET" && options.body !== undefined) {
-    headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
-    body = typeof options.body === "string" ? options.body : JSON.stringify(options.body);
+    if (typeof options.body === "string") {
+      body = options.body;
+    } else {
+      body = JSON.stringify(options.body);
+      if (findHeader(headers, "content-type") === undefined) {
+        headers["content-type"] = "application/json";
+      }
+    }
   }
 
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
